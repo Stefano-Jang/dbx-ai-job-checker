@@ -1,0 +1,15 @@
+command:
+  - python
+  - app.py
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql-warehouse
+  - name: DATABRICKS_JOB_DEMO
+    valueFrom: demo-job
+  - name: DATABRICKS_SERVING_ENDPOINT_NAME
+    valueFrom: serving-endpoint
+  - name: APP_CATALOG
+    value: ai_job_checker
+  - name: APP_SCHEMA
+    value: ops
+

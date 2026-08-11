@@ -1,0 +1,41 @@
+version: "1.0.0"
+execution_anomaly:
+  baseline_successful_runs: 20
+  minimum_history: 5
+  method: median_mad
+  dimensions: [setup_duration, queue_duration, execution_duration, total_duration]
+data_quality:
+  minimum_completeness_ratio: 0.99
+  maximum_freshness_days: 1
+  rules:
+    - customer_id_not_null
+    - customer_id_unique
+    - ltv_non_negative
+    - input_output_customer_count_consistent
+semantics:
+  definition: "LTV is the per-customer sum of net revenue."
+  include_refunds_and_cancellations: true
+  prohibit_future_data: true
+scoring:
+  weights:
+    execution: 0.25
+    data_quality: 0.40
+    semantics: 0.35
+  severity_boundaries:
+    critical: 80
+    high: 60
+    medium: 30
+llm:
+  model: system.ai.databricks-claude-sonnet-4-6
+  prompt_version: "1.0.0"
+  output_language: request.report_locale
+  instructions:
+    - Judge only from supplied evidence.
+    - Separate verified facts from inference.
+    - Cite a source or metric for every finding.
+    - Do not invent findings when no issue is present.
+    - Return fixes as an explanation and unified diff.
+  input_limits:
+    raw_dataset_allowed: false
+    sample_rows: 20
+

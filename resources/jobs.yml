@@ -1,0 +1,85 @@
+resources:
+  jobs:
+    bootstrap:
+      name: "[AI Job Checker] Bootstrap"
+      max_concurrent_runs: 1
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+        - name: demo_job_id
+          default: ${resources.jobs.demo_ltv.id}
+        - name: watcher_job_id
+          default: ${resources.jobs.watcher.id}
+        - name: analysis_job_id
+          default: ${resources.jobs.analyzer.id}
+      tasks:
+        - task_key: create_tables
+          notebook_task:
+            notebook_path: ../src/notebooks/bootstrap.py
+
+    demo_ltv:
+      name: "[AI Job Checker] Demo Customer LTV"
+      max_concurrent_runs: 1
+      queue:
+        enabled: true
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: scenario
+          default: normal
+        - name: source_run_id
+          default: "{{job.run_id}}"
+      tasks:
+        - task_key: build_customer_ltv
+          notebook_task:
+            notebook_path: ../src/notebooks/demo_ltv.py
+
+    analyzer:
+      name: "[AI Job Checker] Run Analyzer"
+      max_concurrent_runs: 4
+      queue:
+        enabled: true
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+        - name: source_job_id
+          default: ""
+        - name: source_run_id
+          default: ""
+        - name: scenario
+          default: unknown
+        - name: report_locale
+          default: ko
+        - name: serving_endpoint
+          default: ${var.serving_endpoint}
+        - name: policy_path
+          default: ${workspace.file_path}/config/analysis-policy.yml
+      tasks:
+        - task_key: analyze_run
+          notebook_task:
+            notebook_path: ../src/notebooks/analyze_run.py
+
+    watcher:
+      name: "[AI Job Checker] Central Run Watcher"
+      max_concurrent_runs: 1
+      queue:
+        enabled: true
+      schedule:
+        quartz_cron_expression: "0 0/2 * * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+        - name: analysis_job_id
+          default: ${resources.jobs.analyzer.id}
+      tasks:
+        - task_key: detect_terminal_runs
+          notebook_task:
+            notebook_path: ../src/notebooks/watcher.py

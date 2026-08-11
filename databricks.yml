@@ -1,0 +1,33 @@
+bundle:
+  name: dbx-ai-job-checker
+
+include:
+  - resources/*.yml
+
+sync:
+  include:
+    - config/analysis-policy.yml
+    - docs/tutorial/**
+
+variables:
+  catalog:
+    description: Unity Catalog catalog owned by this deployment
+    default: ai_job_checker
+  schema:
+    description: Schema for operational tables
+    default: ops
+  warehouse_id:
+    description: SQL warehouse used by the App
+  serving_endpoint:
+    description: Foundation Model API endpoint used for analysis
+    default: databricks-claude-sonnet-4-6
+
+targets:
+  nexon:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    variables:
+      catalog: ai_job_checker
+      schema: ops
+      serving_endpoint: databricks-claude-sonnet-4-6
