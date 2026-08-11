@@ -1,7 +1,33 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Job Checker</title><link rel="stylesheet" href="/styles.css"></head>
-<body><div class="shell"><aside class="nav"><div class="brand"><span class="mark">A</span><div><strong>AI Job Checker</strong><small data-i18n="productType"></small></div></div><nav><a class="active" href="#reports"><span>◫</span><span data-i18n="navReports"></span></a></nav><div class="nav-foot"><span class="live-dot"></span><span data-i18n="workspaceConnected"></span></div></aside>
-<div class="page"><header><div><p class="eyebrow">DATABRICKS · LAKEFLOW</p><h1 data-i18n="title"></h1><p data-i18n="subtitle"></p></div><button id="locale" class="secondary"></button></header>
-<main><section class="hero"><div><span class="pulse">✦</span><div><strong data-i18n="demoTitle"></strong><p data-i18n="demoHelp"></p></div></div><div class="scenarios"><button data-scenario="normal" data-i18n="scenarioNormal"></button><button data-scenario="stale" data-i18n="scenarioStale"></button><button data-scenario="incomplete" data-i18n="scenarioIncomplete"></button><button data-scenario="semantic_bug" data-i18n="scenarioSemantic"></button><button data-scenario="runtime_failure" data-i18n="scenarioRuntime"></button></div></section>
-<section id="notice" class="notice" role="status"></section>
-<section class="kpis"><article><span data-i18n="kpiRuns"></span><strong id="total">—</strong><small data-i18n="kpiRunsHelp"></small></article><article><span data-i18n="kpiPass"></span><strong id="passed">—</strong><small data-i18n="kpiPassHelp"></small></article><article><span data-i18n="kpiAttention"></span><strong id="failed">—</strong><small data-i18n="kpiAttentionHelp"></small></article><article><span data-i18n="kpiPolicy"></span><strong id="policy">—</strong><small data-i18n="kpiPolicyHelp"></small></article></section>
-<section class="workspace"><aside><div class="section-title"><div><p class="eyebrow" data-i18n="recent"></p><h2 data-i18n="runReports"></h2></div><button id="refresh" class="icon" aria-label="Refresh">↻</button></div><div id="reports" class="reports"></div></aside><article id="detail" class="detail"></article></section></main></div></div><script src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#111817">
+  <title>AI Job Checker</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#main" data-i18n="skipContent"></a>
+  <div class="shell">
+    <aside class="nav">
+      <div class="brand"><span class="mark" aria-hidden="true">A</span><div><strong translate="no">AI Job Checker</strong><small data-i18n="productType"></small></div></div>
+      <nav><a class="active" href="#reports"><span aria-hidden="true">▦</span><span data-i18n="navReports"></span></a></nav>
+      <div class="nav-foot"><span class="live-dot" aria-hidden="true"></span><span data-i18n="workspaceConnected"></span></div>
+    </aside>
+    <div class="page">
+      <header>
+        <div><p class="eyebrow">DATABRICKS / LAKEFLOW</p><h1 data-i18n="title"></h1><p data-i18n="subtitle"></p></div>
+        <div class="header-actions"><span class="environment"><i aria-hidden="true"></i><span data-i18n="live"></span></span><button type="button" id="locale" class="secondary"></button></div>
+      </header>
+      <main id="main">
+        <section class="hero" aria-labelledby="demoTitle"><div class="hero-copy"><span class="pulse" aria-hidden="true">⌁</span><div><strong id="demoTitle" data-i18n="demoTitle"></strong><p data-i18n="demoHelp"></p></div></div><div class="scenarios"><button type="button" data-scenario="normal" data-i18n="scenarioNormal"></button><button type="button" data-scenario="stale" data-i18n="scenarioStale"></button><button type="button" data-scenario="incomplete" data-i18n="scenarioIncomplete"></button><button type="button" data-scenario="semantic_bug" data-i18n="scenarioSemantic"></button><button type="button" data-scenario="runtime_failure" data-i18n="scenarioRuntime"></button></div></section>
+        <section id="notice" class="notice" role="status" aria-live="polite"></section>
+        <section class="kpis"><article><span data-i18n="kpiRuns"></span><strong id="total">—</strong><small data-i18n="kpiRunsHelp"></small></article><article><span data-i18n="kpiPass"></span><strong id="passed">—</strong><small data-i18n="kpiPassHelp"></small></article><article><span data-i18n="kpiAttention"></span><strong id="failed">—</strong><small data-i18n="kpiAttentionHelp"></small></article><article><span data-i18n="kpiPolicy"></span><strong id="policy">—</strong><small data-i18n="kpiPolicyHelp"></small></article></section>
+        <section class="workspace"><aside><div class="section-title"><div><p class="eyebrow" data-i18n="recent"></p><h2 data-i18n="runReports"></h2></div><button type="button" id="refresh" class="icon" aria-label="Refresh">↻</button></div><div id="reports" class="reports"></div></aside><article id="detail" class="detail" aria-live="polite"></article></section>
+      </main>
+    </div>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
