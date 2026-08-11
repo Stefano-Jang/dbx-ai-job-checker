@@ -6,7 +6,7 @@ A Databricks Solution Accelerator that centrally detects Lakeflow Job performanc
 
 > **A successful Job does not guarantee a correct result.** AI Job Checker evaluates quality and semantic policies, captures the actual task source, produces a verifiable diff, and lets users continue the investigation with a run-scoped Code Agent.
 
-![AI Job Checker showing evidence and a suggested diff for a semantic LTV defect](docs/assets/app-overview.png)
+![AI Job Checker in English showing evidence, a contextual source diff, and the Code Agent](docs/assets/app-overview-en.png)
 
 <p align="center"><sub>Production-style operations console — measured semantic evidence, contextual source diff, and a run-scoped Code Agent</sub></p>
 
