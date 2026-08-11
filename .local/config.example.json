@@ -1,0 +1,9 @@
+{
+  "catalog": "ai_job_checker",
+  "default_report_locale": "ko",
+  "model": "system.ai.databricks-claude-sonnet-4-6",
+  "profile": "<your-databricks-profile>",
+  "schema": "ops",
+  "warehouse_id": "<your-sql-warehouse-id>",
+  "workspace_host": "https://<your-workspace-host>"
+}

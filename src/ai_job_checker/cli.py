@@ -112,6 +112,7 @@ def status(_: argparse.Namespace) -> int:
     setup_state = load_json(state_path())
     if not config:
         print("상태: 설정 전")
+        print(f"설정 예시: {local_dir() / 'config.example.json'}")
         print("다음 명령: ./setup.sh configure")
         return 0
     print(f"상태: {setup_state.get('stage', 'configured')}")

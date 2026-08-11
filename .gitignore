@@ -1,5 +1,7 @@
 .DS_Store
-.local/
+.local/*
+!.local/config.example.json
+!.local/setup-state.example.json
 .isaac/
 .venv/
 __pycache__/
