@@ -44,6 +44,56 @@ Lakeflow Job 실행의 성능, 데이터 품질, 의미론적 오류를 중앙�
 
 필요한 항목은 Databricks CLI 0.292 이상, Python 3.10 이상, Node.js 18 이상입니다. 설치 과정에서 사용할 Databricks profile과 SQL warehouse ID는 사용자가 직접 선택해야 합니다.
 
+### 권한과 관리자 협업
+
+먼저 세 주체를 구분해야 합니다.
+
+| 주체 | 언제 만들어지는가 | 하는 일 |
+|---|---|---|
+| **설치자 / 배포 principal** | 설치 전부터 존재하는 사용자 또는 service principal | Bundle 배포, Jobs·App 생성, bootstrap 실행, 리소스 권한 연결 |
+| **Watcher / Analyzer Job 실행 주체** | 기본 설정에서는 배포 principal과 동일 | 대상 Job run 조회, Notebook source 읽기, SQL 측정, Model Serving 호출, Delta 기록 |
+| **App service principal** | Databricks App 생성 시 자동 생성 | 브라우저 요청을 받아 warehouse·demo Job·serving endpoint·리포트 테이블에 접근 |
+
+관리자 역할 자체보다 아래 **객체 권한**이 중요합니다. 이미 위임된 권한이 있으면 관리자가 직접 설치할 필요가 없습니다.
+
+| 설치 단계 | 필요한 작업 | 설치자/실행 주체에 필요한 권한 | 누구의 도움이 필요한가 |
+|---|---|---|---|
+| Workspace 선택·인증 | CLI profile로 로그인하고 Bundle 파일 업로드 | Workspace access, 자신의 Workspace home에 파일 생성 | 사용자가 workspace에 없거나 access entitlement가 없을 때만 **Workspace Admin** |
+| Lakeflow Jobs 배포 | bootstrap, demo, watcher, analyzer Job 생성·수정·실행 | Job 생성 권한 및 serverless Jobs 사용 가능 상태. Bundle이 만든 Job은 설치자가 owner가 됨 | Job 생성이 제한됐거나 serverless가 비활성화된 경우 **Workspace Admin** |
+| 기존 고객 Job 감시 | run 목록·상세 조회 | 각 대상 Job의 `CAN_VIEW` 이상 | Job owner 또는 **Workspace Admin**이 watcher/analyzer 실행 주체에 부여 |
+| 실제 소스 캡처 | run의 Notebook task source export | 해당 Workspace notebook/directory의 `CAN_READ` | Notebook owner 또는 **Workspace Admin** |
+| 신규 catalog 생성 | bootstrap에서 `CREATE CATALOG` | metastore의 `CREATE CATALOG` | **Metastore Admin** 또는 해당 권한을 위임받은 catalog 관리자 |
+| 기존 catalog 사용 | schema와 Delta table 생성·갱신 | catalog의 `USE CATALOG`, `CREATE SCHEMA`; schema의 `USE SCHEMA`, `CREATE TABLE`, `SELECT`, `MODIFY` | Catalog owner / **Metastore Admin** |
+| SQL warehouse 연결 | App 조회와 `verify` SQL 실행 | 설치자에게 warehouse `CAN_USE`; App에 리소스 권한을 연결할 설치자는 해당 warehouse를 관리·공유할 수 있어야 함 | Warehouse owner 또는 **Workspace Admin** |
+| Foundation Model 호출 | Analyzer와 Code Agent가 Claude endpoint 호출 | analyzer 실행 주체에 endpoint `CAN_QUERY`; App 리소스를 연결할 설치자는 endpoint 권한을 관리·공유할 수 있어야 함 | Serving endpoint owner 또는 **Workspace Admin** |
+| Databricks App 생성 | App과 전용 service principal 생성·배포 | App 생성 권한, Workspace 파일 업로드 권한 | App 생성이 정책으로 제한되거나 Apps가 workspace에 제공되지 않을 때 **Workspace Admin**; 기능 활성화/계정 정책 변경이 필요한 경우에만 **Account Admin** |
+| App runtime 권한 | 리포트 조회, demo 실행, chat 호출 | Bundle이 App SP에 warehouse `CAN_USE`, demo Job `CAN_MANAGE_RUN`, endpoint `CAN_QUERY`, 두 리포트 table `SELECT`를 연결 | 정상 배포 시 자동. 연결 실패 시 각 리소스 owner 또는 **Workspace Admin / Catalog owner** |
+
+#### 관리자가 항상 필요한가?
+
+- **Account Admin:** 일반 설치에는 필요하지 않습니다. Databricks Apps가 계정/workspace 정책으로 차단됐거나 account-level 기능·정책을 바꿔야 할 때만 필요합니다.
+- **Workspace Admin:** 설치자에게 workspace access, Job/App 생성, warehouse/endpoint 공유 권한이 이미 있으면 필요하지 않습니다. 없는 객체 권한을 대신 부여할 때 도움을 받습니다.
+- **Metastore Admin:** 설치자가 catalog owner이거나 필요한 UC 권한을 위임받았다면 필요하지 않습니다. 신규 catalog 생성 또는 catalog/schema grant가 필요할 때만 요청합니다.
+- **Job/Notebook/warehouse/endpoint owner:** 전체 관리자 대신 해당 객체 owner가 최소 권한만 부여하는 방식이 권장됩니다.
+
+가장 권한이 적은 설치 경로는 관리자가 미리 catalog/schema와 warehouse를 준비하고, 설치자에게 필요한 grant만 위임하는 방식입니다. 예시는 다음과 같습니다. 실제 principal 이름과 catalog는 환경에 맞게 바꾸세요.
+
+```sql
+-- 기존 catalog를 사용하는 경우: Catalog owner 또는 Metastore Admin 실행
+GRANT USE CATALOG, CREATE SCHEMA ON CATALOG ai_job_checker TO `<installer-principal>`;
+
+-- schema를 관리자가 미리 만든 경우
+GRANT USE CATALOG ON CATALOG ai_job_checker TO `<installer-principal>`;
+GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY
+ON SCHEMA ai_job_checker.ops TO `<installer-principal>`;
+GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY
+ON SCHEMA ai_job_checker.demo TO `<installer-principal>`;
+```
+
+SQL warehouse의 `CAN_USE`, 대상 Job의 `CAN_VIEW`, Notebook의 `CAN_READ`, serving endpoint의 `CAN_QUERY`는 각 리소스의 **Permissions** 화면에서 installer/watcher principal에 부여합니다. App service principal의 런타임 grant는 App 생성 후 Bundle이 `resources/app.app.yml` 선언에 따라 연결하므로 사전에 principal ID를 만들 필요가 없습니다.
+
+`system.lakeflow`와 `system.ai_gateway` system table 접근은 핵심 설치·실행에는 필수가 아니며, 중앙 사용량/AI Gateway 감사를 추가할 때만 별도로 `USE CATALOG`, `USE SCHEMA`, `SELECT`를 요청합니다.
+
 ```bash
 git clone https://github.com/Stefano-Jang/dbx-ai-job-checker.git
 cd dbx-ai-job-checker
@@ -151,7 +201,7 @@ flowchart LR
   --warehouse-id <your-sql-warehouse-id> \
   --catalog ai_job_checker \
   --schema ops \
-  --model system.ai.databricks-claude-sonnet-4-6 \
+  --model databricks-claude-sonnet-4-6 \
   --report-locale ko
 ```
 
@@ -170,5 +220,5 @@ flowchart LR
 
 - 공식 검증 환경: AWS Databricks
 - 기본 UI 및 신규 리포트 언어: 한국어
-- 필요한 관리자 역할: Account Admin, Workspace Admin, Metastore/Unity Catalog Admin
+- 관리자 개입: 누락된 객체 권한이 있을 때만 Account/Workspace/Metastore Admin 또는 해당 리소스 owner에게 요청
 - 목표 설치 시간: 관리자 대기 시간을 제외하고 60분 이내

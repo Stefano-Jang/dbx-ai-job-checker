@@ -34,5 +34,23 @@ class ProfileSelectionTest(unittest.TestCase):
             cli._choose_profile("DEFAULT")
 
 
+class BundleVariablesTest(unittest.TestCase):
+    def test_all_configurable_values_are_forwarded(self) -> None:
+        self.assertEqual(
+            cli._bundle_vars({
+                "warehouse_id": "abc123",
+                "catalog": "customer_catalog",
+                "schema": "job_ops",
+                "model": "databricks-claude-sonnet-4-6",
+            }),
+            [
+                "--var", "warehouse_id=abc123",
+                "--var", "catalog=customer_catalog",
+                "--var", "schema=job_ops",
+                "--var", "serving_endpoint=databricks-claude-sonnet-4-6",
+            ],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

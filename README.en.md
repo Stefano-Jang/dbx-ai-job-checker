@@ -44,6 +44,56 @@ A Databricks Solution Accelerator that centrally detects Lakeflow Job performanc
 
 Prerequisites are Databricks CLI 0.292 or later, Python 3.10 or later, and Node.js 18 or later. You must explicitly select the Databricks profile and SQL warehouse ID used for installation.
 
+### Permissions and administrator involvement
+
+Keep these three identities separate:
+
+| Identity | Responsibility |
+|---|---|
+| **Installer / deployment principal** | Deploys the Bundle, creates Jobs and the App, runs bootstrap, and attaches App resources |
+| **Watcher / Analyzer run identity** | Reads target runs and task source, executes SQL measurements, queries Model Serving, and writes Delta records. It is the deployment principal by default |
+| **App service principal** | Created automatically with the App and used at runtime for the warehouse, demo Job, serving endpoint, and report tables |
+
+Administrator titles are less important than the following **object permissions**:
+
+| Installation stage | Minimum permission | When to involve an administrator |
+|---|---|---|
+| Workspace and Bundle | Workspace access and permission to create files in the principal's home | Ask a **Workspace Admin** only when workspace access/entitlement is missing |
+| Create and run Jobs | Permission to create Jobs and use serverless Jobs | Ask a **Workspace Admin** if Job creation is restricted or serverless is disabled |
+| Observe customer Jobs | `CAN_VIEW` on every target Job | Ask the Job owner or **Workspace Admin** |
+| Capture task source | `CAN_READ` on the notebook or containing directory | Ask the notebook owner or **Workspace Admin** |
+| Create a new catalog | `CREATE CATALOG` on the metastore | Ask a **Metastore Admin** or delegated catalog administrator |
+| Use an existing catalog | `USE CATALOG`, `CREATE SCHEMA`; plus `USE SCHEMA`, `CREATE TABLE`, `SELECT`, and `MODIFY` on the schema | Ask the catalog owner or **Metastore Admin** |
+| Connect a SQL warehouse | Installer needs `CAN_USE`; the installer must also be allowed to share/attach the warehouse to the App | Ask the warehouse owner or **Workspace Admin** |
+| Call Model Serving | Analyzer needs endpoint `CAN_QUERY`; installer must be allowed to share/attach the endpoint to the App | Ask the endpoint owner or **Workspace Admin** |
+| Create the Databricks App | Permission to create Apps and upload Workspace files | Ask a **Workspace Admin** if App creation is restricted; involve an **Account Admin** only for account-level enablement or policy changes |
+| App runtime access | App SP receives warehouse `CAN_USE`, demo Job `CAN_MANAGE_RUN`, endpoint `CAN_QUERY`, and `SELECT` on two report tables | Attached automatically by the Bundle; ask the failing resource's owner/admin only if attachment fails |
+
+#### Are all three administrators always required?
+
+- **Account Admin:** No. Required only when Databricks Apps is blocked by account/workspace policy or an account-level setting must change.
+- **Workspace Admin:** No. Required only to provide missing workspace, Job/App creation, warehouse, endpoint, Job, or notebook permissions.
+- **Metastore Admin:** No. Required only to create a catalog or grant catalog/schema privileges when those privileges have not been delegated.
+- **Resource owners:** Prefer the Job, notebook, warehouse, endpoint, or catalog owner granting the minimum object permission instead of requesting a broad admin role.
+
+A least-privilege installation has an administrator prepare the catalog/schema and warehouse, then delegate only the required grants:
+
+```sql
+-- Existing catalog: run as catalog owner or Metastore Admin
+GRANT USE CATALOG, CREATE SCHEMA ON CATALOG ai_job_checker TO `<installer-principal>`;
+
+-- If the schema is created in advance
+GRANT USE CATALOG ON CATALOG ai_job_checker TO `<installer-principal>`;
+GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY
+ON SCHEMA ai_job_checker.ops TO `<installer-principal>`;
+GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY
+ON SCHEMA ai_job_checker.demo TO `<installer-principal>`;
+```
+
+Grant warehouse `CAN_USE`, target Job `CAN_VIEW`, notebook `CAN_READ`, and endpoint `CAN_QUERY` from each resource's **Permissions** screen. You do not need to pre-create the App SP: Databricks creates it with the App, and the Bundle attaches the runtime grants declared in [`resources/app.app.yml`](resources/app.app.yml).
+
+Access to the `system.lakeflow` and `system.ai_gateway` system tables is optional and not required for the core installation. Request `USE CATALOG`, `USE SCHEMA`, and `SELECT` only when extending the accelerator with centralized usage or AI Gateway auditing.
+
 ```bash
 git clone https://github.com/Stefano-Jang/dbx-ai-job-checker.git
 cd dbx-ai-job-checker
@@ -135,7 +185,7 @@ Environment-specific values are stored in the Git-ignored `.local/config.json`. 
   --warehouse-id <your-sql-warehouse-id> \
   --catalog ai_job_checker \
   --schema ops \
-  --model system.ai.databricks-claude-sonnet-4-6 \
+  --model databricks-claude-sonnet-4-6 \
   --report-locale en
 ```
 
@@ -156,5 +206,5 @@ See [plan.md](plan.md) for the complete design.
 
 - Official validation environment: AWS Databricks
 - Default UI and new-report language: Korean
-- Required contacts: Account Admin, Workspace Admin, and Metastore/Unity Catalog Admin
+- Administrator involvement: only for missing object permissions; use the relevant resource owner or Account/Workspace/Metastore Admin
 - Target setup time: under 60 minutes, excluding administrator wait time

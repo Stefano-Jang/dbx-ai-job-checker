@@ -44,6 +44,43 @@ Lakeflow Job 실행의 성능, 데이터 품질, 의미론적 오류를 중앙�
 
 필요한 항목은 Databricks CLI 0.292 이상, Python 3.10 이상, Node.js 18 이상입니다. Databricks profile과 SQL warehouse ID는 사용자가 직접 선택해야 합니다.
 
+### 권한과 관리자 협업
+
+| 주체 | 역할 |
+|---|---|
+| **설치자 / 배포 principal** | Bundle 배포, Jobs·App 생성, bootstrap 실행, 리소스 권한 연결 |
+| **Watcher / Analyzer 실행 주체** | 대상 run 조회, Notebook source 읽기, SQL 측정, Model Serving 호출, Delta 기록. 기본값은 배포 principal과 동일 |
+| **App service principal** | App 생성 시 자동 생성되며 warehouse, demo Job, endpoint, 리포트 table에 런타임 접근 |
+
+| 단계 | 최소 객체 권한 | 관리자에게 요청할 때 |
+|---|---|---|
+| Workspace/Bundle | Workspace access, 자신의 home에 파일 생성 | access entitlement가 없으면 **Workspace Admin** |
+| Jobs 생성·실행 | Job 생성 권한, serverless Jobs 사용 가능 | 생성 제한 또는 serverless 비활성 시 **Workspace Admin** |
+| 고객 Job 감시 | 대상 Job `CAN_VIEW` | Job owner 또는 **Workspace Admin** |
+| task source 캡처 | Notebook/directory `CAN_READ` | Notebook owner 또는 **Workspace Admin** |
+| 신규 catalog | metastore `CREATE CATALOG` | **Metastore Admin** 또는 위임 관리자 |
+| 기존 catalog/schema | `USE CATALOG`, `CREATE SCHEMA`, `USE SCHEMA`, `CREATE TABLE`, `SELECT`, `MODIFY` | Catalog owner 또는 **Metastore Admin** |
+| SQL warehouse | 설치자 `CAN_USE`; App 연결 권한을 공유할 수 있는 권한 | Warehouse owner 또는 **Workspace Admin** |
+| Model Serving | analyzer `CAN_QUERY`; App 연결 권한을 공유할 수 있는 권한 | Endpoint owner 또는 **Workspace Admin** |
+| Databricks App | App 생성과 Workspace 파일 업로드 | 정책 제한 시 **Workspace Admin**; account-level 활성화/정책 변경 시에만 **Account Admin** |
+| App runtime | App SP에 warehouse `CAN_USE`, demo Job `CAN_MANAGE_RUN`, endpoint `CAN_QUERY`, 리포트 table `SELECT` | Bundle이 자동 연결. 실패한 리소스의 owner/admin에게 요청 |
+
+**Account Admin은 일반 설치에 필요하지 않습니다.** Apps가 계정 정책으로 차단됐을 때만 필요합니다. 설치자가 필요한 객체 권한을 이미 위임받았다면 Workspace Admin과 Metastore Admin도 필요하지 않습니다. 가능하면 전체 관리자 대신 Job/Notebook/warehouse/endpoint/catalog owner에게 위 표의 최소 권한만 요청하세요.
+
+```sql
+-- 기존 catalog 사용 시 Catalog owner 또는 Metastore Admin이 실행
+GRANT USE CATALOG, CREATE SCHEMA ON CATALOG ai_job_checker TO `<installer-principal>`;
+
+-- 관리자가 schema를 미리 만든 경우
+GRANT USE CATALOG ON CATALOG ai_job_checker TO `<installer-principal>`;
+GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY
+ON SCHEMA ai_job_checker.ops TO `<installer-principal>`;
+GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY
+ON SCHEMA ai_job_checker.demo TO `<installer-principal>`;
+```
+
+Warehouse `CAN_USE`, 대상 Job `CAN_VIEW`, Notebook `CAN_READ`, endpoint `CAN_QUERY`는 각 리소스의 Permissions 화면에서 installer/watcher principal에 부여합니다. App SP는 App 생성 시 자동 생성되며 [`resources/app.app.yml`](resources/app.app.yml)의 권한이 배포 중 연결됩니다. `system.lakeflow`와 `system.ai_gateway` 접근은 핵심 실행에는 필요하지 않고 중앙 감사 기능을 확장할 때만 필요합니다.
+
 ```bash
 git clone https://github.com/Stefano-Jang/dbx-ai-job-checker.git
 cd dbx-ai-job-checker
@@ -133,7 +170,7 @@ flowchart LR
   --warehouse-id <your-sql-warehouse-id> \
   --catalog ai_job_checker \
   --schema ops \
-  --model system.ai.databricks-claude-sonnet-4-6 \
+  --model databricks-claude-sonnet-4-6 \
   --report-locale ko
 ```
 

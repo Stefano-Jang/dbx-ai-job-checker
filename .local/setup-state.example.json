@@ -1,4 +1,21 @@
 {
+  "_documentation": {
+    "stage": {
+      "description": "설치 도우미가 마지막으로 완료한 단계입니다. 사용자가 직접 수정하는 값이 아닙니다.",
+      "accepted_values": ["configured", "deployed", "verified"],
+      "example": "configured"
+    },
+    "target": {
+      "description": "배포에 사용한 Databricks Asset Bundle target 이름입니다. deploy 이후 기록됩니다.",
+      "accepted_values": "databricks.yml의 targets 아래에 정의된 이름. 이 저장소의 기본값은 nexon입니다.",
+      "example": "nexon"
+    },
+    "updated_at": {
+      "description": "설치 상태가 마지막으로 변경된 UTC 시각입니다.",
+      "accepted_values": "Timezone이 포함된 ISO 8601 timestamp.",
+      "example": "2026-08-12T03:30:00+00:00"
+    }
+  },
   "stage": "configured",
   "target": "nexon",
   "updated_at": "<ISO-8601-UTC-timestamp>"

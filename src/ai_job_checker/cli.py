@@ -94,7 +94,7 @@ def configure(args: argparse.Namespace) -> int:
         "warehouse_id": args.warehouse_id or existing.get("warehouse_id"),
         "catalog": args.catalog or existing.get("catalog", "ai_job_checker"),
         "schema": args.schema or existing.get("schema", "ops"),
-        "model": args.model or existing.get("model", "system.ai.databricks-claude-sonnet-4-6"),
+        "model": args.model or existing.get("model", "databricks-claude-sonnet-4-6"),
         "default_report_locale": args.report_locale or existing.get("default_report_locale", "ko"),
     }
     if not values["warehouse_id"]:
@@ -135,6 +135,15 @@ def _run_checked(command: list[str]) -> None:
         raise RuntimeError(f"명령이 실패했습니다(exit {result.returncode}): {' '.join(command)}")
 
 
+def _bundle_vars(config: dict[str, object]) -> list[str]:
+    return [
+        "--var", f"warehouse_id={config['warehouse_id']}",
+        "--var", f"catalog={config['catalog']}",
+        "--var", f"schema={config['schema']}",
+        "--var", f"serving_endpoint={config['model']}",
+    ]
+
+
 def admin_pack(_: argparse.Namespace) -> int:
     config = _configured()
     request_dir = local_dir() / "admin-requests"
@@ -143,9 +152,45 @@ def admin_pack(_: argparse.Namespace) -> int:
     catalog = str(config["catalog"])
     schema = str(config["schema"])
     documents = {
-        "account-admin.md": f"""# Account Admin 요청\n\n대상 workspace: {host}\n\n- Databricks Apps가 활성화되어 있는지 확인해 주세요.\n- 완료 후 활성화 상태와 확인 시각을 회신해 주세요.\n""",
-        "workspace-admin.md": f"""# Workspace Admin 요청\n\n대상 workspace: {host}\n\n- AI Job Checker App/Watcher/Analyzer principal에 선택한 Job의 `CAN_VIEW`를 부여해 주세요.\n- 분석할 Notebook source에는 `CAN_READ`를 부여해 주세요.\n- 적용 principal, Job ID와 검증 결과를 회신해 주세요.\n""",
-        "uc-admin.md": f"""# Metastore / Unity Catalog Admin 요청\n\n대상: `{catalog}.{schema}`\n\n- 배포 principal이 catalog/schema를 만들고 관리할 수 있는지 확인해 주세요.\n- App principal에 `{catalog}.{schema}`의 `USE CATALOG`, `USE SCHEMA`, `SELECT`를 허용해 주세요.\n- `system.lakeflow`, `system.ai_gateway` 접근 가능 여부를 확인해 주세요.\n- 적용한 grants와 검증 결과를 회신해 주세요.\n""",
+        "account-admin.md": f"""# Account Admin 조건부 요청
+
+대상 workspace: {host}
+
+일반 설치에는 Account Admin 작업이 필요하지 않습니다. 다음 중 하나가 확인된 경우에만 요청합니다.
+
+- Databricks Apps가 account/workspace 정책으로 차단되어 있습니다.
+- App 생성에 필요한 account-level 기능 또는 정책 변경이 필요합니다.
+
+해당하지 않으면 이 요청서는 무시해 주세요. 변경했다면 변경한 정책과 확인 시각을 회신해 주세요.
+""",
+        "workspace-admin.md": f"""# Workspace Admin / 리소스 owner 요청
+
+대상 workspace: {host}
+
+설치 principal에 이미 있는 권한은 다시 부여하지 말고, 실패한 항목만 최소 권한으로 적용해 주세요.
+
+- Workspace access와 Job/App 생성 권한, serverless Jobs 사용 가능 여부
+- 선택한 SQL warehouse: 설치 principal `CAN_USE` 및 App에 연결할 수 있는 공유/관리 권한
+- 선택한 serving endpoint: analyzer principal `CAN_QUERY` 및 App에 연결할 수 있는 공유/관리 권한
+- 감시할 고객 Job: watcher/analyzer principal `CAN_VIEW`
+- 분석할 Notebook 또는 상위 directory: watcher/analyzer principal `CAN_READ`
+
+Job/Notebook/warehouse/endpoint owner가 해당 권한을 줄 수 있으면 Workspace Admin 작업은 필요하지 않습니다. 적용 principal, object ID/path, permission과 검증 결과를 회신해 주세요.
+""",
+        "uc-admin.md": f"""# Catalog owner / Metastore Admin 요청
+
+대상: `{catalog}.{schema}` 및 `{catalog}.demo`
+
+신규 catalog를 설치자가 만들 경우 metastore `CREATE CATALOG`를 위임해 주세요. 관리자가 catalog/schema를 미리 만들 경우 설치 principal에 다음 최소 권한을 부여해 주세요.
+
+- catalog: `USE CATALOG`
+- schema `{schema}`와 `demo`: `USE SCHEMA`, `CREATE TABLE`, `SELECT`, `MODIFY`
+- 설치자가 schema를 만들 경우 catalog: `CREATE SCHEMA`
+
+App service principal은 App 생성 시 자동 생성되며 리포트 table `SELECT`가 Bundle 리소스로 연결됩니다. `system.lakeflow`와 `system.ai_gateway` 접근은 핵심 설치에는 필요하지 않으며 중앙 감사 확장을 요청한 경우에만 별도로 검토해 주세요.
+
+적용 principal, securable, grant와 검증 결과를 회신해 주세요.
+""",
     }
     for filename, contents in documents.items():
         path = request_dir / filename
@@ -159,15 +204,15 @@ def admin_pack(_: argparse.Namespace) -> int:
 def deploy(args: argparse.Namespace) -> int:
     config = _configured()
     profile = str(config["profile"])
-    warehouse_var = f"warehouse_id={config['warehouse_id']}"
+    bundle_vars = _bundle_vars(config)
     if not args.yes:
         if not sys.stdin.isatty() or input("Jobs, App, UC tables을 생성/갱신합니다. 계속할까요? [y/N] ").lower() not in {"y", "yes"}:
             print("배포를 취소했습니다.")
             return 1
-    _run_checked(["databricks", "bundle", "validate", "--strict", "-t", args.target, "--var", warehouse_var, "--profile", profile])
-    _run_checked(["databricks", "bundle", "deploy", "-t", args.target, "--var", warehouse_var, "--auto-approve", "--profile", profile])
-    _run_checked(["databricks", "bundle", "run", "bootstrap", "-t", args.target, "--var", warehouse_var, "--profile", profile])
-    _run_checked(["databricks", "bundle", "run", "job_checker_app", "-t", args.target, "--var", warehouse_var, "--profile", profile])
+    _run_checked(["databricks", "bundle", "validate", "--strict", "-t", args.target, *bundle_vars, "--profile", profile])
+    _run_checked(["databricks", "bundle", "deploy", "-t", args.target, *bundle_vars, "--auto-approve", "--profile", profile])
+    _run_checked(["databricks", "bundle", "run", "bootstrap", "-t", args.target, *bundle_vars, "--profile", profile])
+    _run_checked(["databricks", "bundle", "run", "job_checker_app", "-t", args.target, *bundle_vars, "--profile", profile])
     save_json(state_path(), {"stage": "deployed", "target": args.target, "updated_at": datetime.now(timezone.utc).isoformat()})
     print("\n다음 명령: ./setup.sh verify")
     return 0
@@ -181,8 +226,8 @@ def resume(args: argparse.Namespace) -> int:
 def verify(args: argparse.Namespace) -> int:
     config = _configured()
     profile = str(config["profile"])
-    warehouse_var = f"warehouse_id={config['warehouse_id']}"
-    _run_checked(["databricks", "bundle", "summary", "-t", args.target, "--var", warehouse_var, "--profile", profile])
+    bundle_vars = _bundle_vars(config)
+    _run_checked(["databricks", "bundle", "summary", "-t", args.target, *bundle_vars, "--profile", profile])
     _run_checked(["databricks", "apps", "get", "ai-job-checker", "--profile", profile])
     statement = f"SELECT COUNT(*) AS watched_jobs FROM `{config['catalog']}`.`{config['schema']}`.`watched_jobs` WHERE enabled=true"
     _run_checked(["databricks", "experimental", "aitools", "tools", "query", statement, "--profile", profile])
@@ -194,15 +239,15 @@ def verify(args: argparse.Namespace) -> int:
 def demo(args: argparse.Namespace) -> int:
     config = _configured()
     profile = str(config["profile"])
-    warehouse_var = f"warehouse_id={config['warehouse_id']}"
-    demo_command = ["databricks", "bundle", "run", "demo_ltv", "-t", args.target, "--var", warehouse_var, "--params", f"scenario={args.scenario}", "--profile", profile]
+    bundle_vars = _bundle_vars(config)
+    demo_command = ["databricks", "bundle", "run", "demo_ltv", "-t", args.target, *bundle_vars, "--params", f"scenario={args.scenario}", "--profile", profile]
     print(f"실행: {' '.join(demo_command)}")
     demo_result = subprocess.run(demo_command, check=False)
     if demo_result.returncode != 0 and args.scenario != "runtime_failure":
         raise RuntimeError(f"데모 Job이 예기치 않게 실패했습니다(exit {demo_result.returncode}).")
     if demo_result.returncode != 0:
         print("runtime_failure 시나리오의 의도된 Job 실패를 확인했습니다.")
-    _run_checked(["databricks", "bundle", "run", "watcher", "-t", args.target, "--var", warehouse_var, "--profile", profile])
+    _run_checked(["databricks", "bundle", "run", "watcher", "-t", args.target, *bundle_vars, "--profile", profile])
     print("분석 Job이 비동기로 시작되었습니다. ./setup.sh verify로 상태를 확인하세요.")
     return 0
 

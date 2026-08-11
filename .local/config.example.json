@@ -1,7 +1,44 @@
 {
+  "_documentation": {
+    "catalog": {
+      "description": "운영 리포트와 demo table을 생성할 Unity Catalog catalog 이름입니다.",
+      "accepted_values": "영문자, 숫자, underscore로 구성된 Unity Catalog identifier. 신규 이름이면 설치 principal에 CREATE CATALOG가 필요합니다.",
+      "example": "ai_job_checker"
+    },
+    "default_report_locale": {
+      "description": "새 분석 요청과 리포트에 사용할 기본 언어입니다. App 화면 언어는 사용자가 별도로 전환할 수 있습니다.",
+      "accepted_values": ["ko", "en"],
+      "example": "ko"
+    },
+    "model": {
+      "description": "Run Analyzer와 Code Agent가 호출할 Databricks Model Serving endpoint 이름입니다.",
+      "accepted_values": "Workspace에 존재하고 실행 principal이 CAN_QUERY를 가진 chat-completion endpoint 이름. system.ai catalog model 경로가 아닙니다.",
+      "example": "databricks-claude-sonnet-4-6"
+    },
+    "profile": {
+      "description": "모든 CLI, Bundle, Job, App 작업에 명시적으로 사용할 로컬 Databricks CLI profile 이름입니다.",
+      "accepted_values": "databricks auth profiles에 표시되고 인증이 유효한 profile 이름.",
+      "example": "customer-workspace"
+    },
+    "schema": {
+      "description": "선택한 catalog 안에서 운영 Delta table을 생성할 schema 이름입니다. demo 데이터는 같은 catalog의 demo schema에 생성됩니다.",
+      "accepted_values": "영문자, 숫자, underscore로 구성된 Unity Catalog schema identifier.",
+      "example": "ops"
+    },
+    "warehouse_id": {
+      "description": "App의 리포트 조회와 setup verify SQL에 사용할 Databricks SQL warehouse ID입니다.",
+      "accepted_values": "Warehouse 이름이 아닌 API ID. SQL Warehouses 화면 URL 또는 databricks warehouses list에서 확인합니다.",
+      "example": "0123456789abcdef"
+    },
+    "workspace_host": {
+      "description": "선택한 profile이 연결하는 Databricks workspace의 HTTPS URL입니다. configure가 profile에서 자동으로 기록합니다.",
+      "accepted_values": "https://로 시작하는 workspace URL. account console URL이 아닙니다.",
+      "example": "https://dbc-xxxxxxxx-xxxx.cloud.databricks.com"
+    }
+  },
   "catalog": "ai_job_checker",
   "default_report_locale": "ko",
-  "model": "system.ai.databricks-claude-sonnet-4-6",
+  "model": "databricks-claude-sonnet-4-6",
   "profile": "<your-databricks-profile>",
   "schema": "ops",
   "warehouse_id": "<your-sql-warehouse-id>",
