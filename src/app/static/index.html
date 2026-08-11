@@ -1,17 +1,7 @@
-<!doctype html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AI Job Checker</title><link rel="stylesheet" href="/styles.css">
-</head>
-<body>
-  <header><div><p class="eyebrow">DATABRICKS · LAKEFLOW</p><h1>AI Job Checker</h1><p id="subtitle">실행의 이상, 데이터 품질, 의미론을 하나의 근거로 확인합니다.</p></div><button id="locale">English</button></header>
-  <main>
-    <section class="toolbar"><div><strong id="newReportLabel">신규 리포트 언어</strong><span class="badge">한국어</span></div><div class="scenarios"><button data-scenario="normal">Normal</button><button data-scenario="stale">Stale</button><button data-scenario="incomplete">Incomplete</button><button data-scenario="semantic_bug">Semantic bug</button><button data-scenario="runtime_failure">Runtime failure</button></div></section>
-    <section id="notice" class="notice">리포트를 불러오는 중입니다…</section>
-    <section class="kpis"><article><span>분석 실행</span><strong id="total">—</strong><small>run_reports · 최신 조회</small></article><article><span>정상</span><strong id="passed">—</strong><small>verdict = PASS</small></article><article><span>주의 필요</span><strong id="failed">—</strong><small>WARN 또는 FAIL</small></article><article><span>정책 버전</span><strong id="policy">—</strong><small>재현 가능한 snapshot</small></article></section>
-    <section class="workspace"><aside><div class="section-title"><h2>Run reports</h2><button id="refresh">새로고침</button></div><div id="reports" class="reports"></div></aside><article id="detail" class="detail"><div class="empty"><h2>실행을 선택하세요</h2><p>왼쪽 목록에서 run을 선택하면 측정값, 근거와 수정 제안을 표시합니다.</p></div></article></section>
-  </main>
-  <script src="/app.js"></script>
-</body></html>
-
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI Job Checker</title><link rel="stylesheet" href="/styles.css"></head>
+<body><div class="shell"><aside class="nav"><div class="brand"><span class="mark">A</span><div><strong>AI Job Checker</strong><small data-i18n="productType"></small></div></div><nav><a class="active" href="#reports"><span>◫</span><span data-i18n="navReports"></span></a></nav><div class="nav-foot"><span class="live-dot"></span><span data-i18n="workspaceConnected"></span></div></aside>
+<div class="page"><header><div><p class="eyebrow">DATABRICKS · LAKEFLOW</p><h1 data-i18n="title"></h1><p data-i18n="subtitle"></p></div><button id="locale" class="secondary"></button></header>
+<main><section class="hero"><div><span class="pulse">✦</span><div><strong data-i18n="demoTitle"></strong><p data-i18n="demoHelp"></p></div></div><div class="scenarios"><button data-scenario="normal" data-i18n="scenarioNormal"></button><button data-scenario="stale" data-i18n="scenarioStale"></button><button data-scenario="incomplete" data-i18n="scenarioIncomplete"></button><button data-scenario="semantic_bug" data-i18n="scenarioSemantic"></button><button data-scenario="runtime_failure" data-i18n="scenarioRuntime"></button></div></section>
+<section id="notice" class="notice" role="status"></section>
+<section class="kpis"><article><span data-i18n="kpiRuns"></span><strong id="total">—</strong><small data-i18n="kpiRunsHelp"></small></article><article><span data-i18n="kpiPass"></span><strong id="passed">—</strong><small data-i18n="kpiPassHelp"></small></article><article><span data-i18n="kpiAttention"></span><strong id="failed">—</strong><small data-i18n="kpiAttentionHelp"></small></article><article><span data-i18n="kpiPolicy"></span><strong id="policy">—</strong><small data-i18n="kpiPolicyHelp"></small></article></section>
+<section class="workspace"><aside><div class="section-title"><div><p class="eyebrow" data-i18n="recent"></p><h2 data-i18n="runReports"></h2></div><button id="refresh" class="icon" aria-label="Refresh">↻</button></div><div id="reports" class="reports"></div></aside><article id="detail" class="detail"></article></section></main></div></div><script src="/app.js"></script></body></html>

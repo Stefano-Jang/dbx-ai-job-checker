@@ -4,6 +4,7 @@
 !.local/setup-state.example.json
 .isaac/
 .venv/
+*.egg-info/
 __pycache__/
 *.py[cod]
 .pytest_cache/

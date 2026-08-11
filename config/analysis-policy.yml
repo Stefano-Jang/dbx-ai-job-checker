@@ -16,6 +16,21 @@ semantics:
   definition: "LTV is the per-customer sum of net revenue."
   include_refunds_and_cancellations: true
   prohibit_future_data: true
+  checks:
+    - metric_key: semantic_net_revenue_mismatches
+      threshold: 0
+      comparison: maximum
+      query: |
+        WITH expected AS (
+          SELECT customer_id, SUM(amount) AS expected_ltv
+          FROM `{catalog}`.`demo`.`customer_events`
+          GROUP BY customer_id
+        )
+        SELECT CAST(COUNT(*) AS DOUBLE) AS metric_value
+        FROM `{catalog}`.`demo`.`customer_ltv` actual
+        JOIN expected USING (customer_id)
+        WHERE actual.source_run_id = {source_run_id}
+          AND ABS(actual.ltv - expected.expected_ltv) > 0.000001
 scoring:
   weights:
     execution: 0.25
@@ -38,4 +53,3 @@ llm:
   input_limits:
     raw_dataset_allowed: false
     sample_rows: 20
-

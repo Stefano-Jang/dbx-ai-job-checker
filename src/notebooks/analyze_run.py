@@ -1,12 +1,15 @@
 # Databricks notebook source
 import hashlib
+import base64
 import json
 import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+import yaml
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.serving import ChatMessage, ChatMessageRole
+from databricks.sdk.service.workspace import ExportFormat
 
 catalog = dbutils.widgets.get("catalog")
 schema = dbutils.widgets.get("schema")
@@ -21,11 +24,41 @@ table = lambda name: f"`{catalog}`.`{schema}`.`{name}`"
 policy_path = Path(policy_path_value)
 policy_snapshot = policy_path.read_text(encoding="utf-8")
 policy_hash = hashlib.sha256(policy_snapshot.encode()).hexdigest()
+policy = yaml.safe_load(policy_snapshot)
 
 w = WorkspaceClient()
 run = w.jobs.get_run(source_run_id)
 duration_ms = max(0, (run.end_time or 0) - (run.start_time or 0))
 result_state = run.state.result_state.value if run.state and run.state.result_state else "UNKNOWN"
+
+# Capture the actual task source for this run. This makes remediation portable to
+# customer Jobs instead of coupling the analyzer to the bundled demo notebook.
+source_snapshots = []
+run_tasks = list(run.tasks or [])
+if not run_tasks:
+    job = w.jobs.get(source_job_id)
+    run_tasks = list(job.settings.tasks or []) if job.settings else []
+for task in run_tasks:
+    notebook_task = getattr(task, "notebook_task", None)
+    source_path = getattr(notebook_task, "notebook_path", None)
+    if not source_path:
+        continue
+    try:
+        exported = w.workspace.export(source_path, format=ExportFormat.SOURCE)
+        source_text = base64.b64decode(exported.content).decode("utf-8", errors="replace")
+        source_snapshots.append((getattr(task, "task_key", "unknown"), source_path, source_text[:50000]))
+    except Exception as exc:
+        evidence_note = f"Unable to capture {source_path}: {str(exc)[:300]}"
+        source_snapshots.append((getattr(task, "task_key", "unknown"), source_path, evidence_note))
+
+spark.sql(f"DELETE FROM {table('source_snapshots')} WHERE source_run_id={source_run_id}")
+if source_snapshots:
+    source_df = spark.createDataFrame(
+        [(source_run_id, task_key, path, text, datetime.now(timezone.utc))
+         for task_key, path, text in source_snapshots],
+        "source_run_id long, task_key string, source_path string, source_text string, captured_at timestamp",
+    )
+    source_df.write.mode("append").saveAsTable(f"{catalog}.{schema}.source_snapshots")
 
 metrics = []
 evidence = [{"source": "jobs_api", "metric": "result_state", "value": result_state},
@@ -55,6 +88,15 @@ metric_values = [
     ("customer_id_duplicates", duplicate_ids, 0.0, duplicate_ids == 0),
     ("negative_ltv", negative_ltv, 0.0, negative_ltv == 0),
 ]
+if result_state == "SUCCESS":
+    for check in policy.get("semantics", {}).get("checks", []):
+        metric_key = str(check["metric_key"])
+        threshold = float(check["threshold"])
+        statement = str(check["query"]).format(catalog=catalog, source_run_id=source_run_id)
+        measured = float(spark.sql(statement).first().metric_value)
+        comparison = check.get("comparison", "maximum")
+        passed = measured <= threshold if comparison == "maximum" else measured >= threshold
+        metric_values.append((metric_key, measured, threshold, passed))
 now = datetime.now(timezone.utc)
 metric_df = spark.createDataFrame(
     [(source_run_id, key, value, threshold, passed, now) for key, value, threshold, passed in metric_values],
@@ -82,33 +124,72 @@ if locale == "en":
     }
 
 failed_count = sum(not passed for *_, passed in metric_values)
-semantic_failed = scenario == "semantic_bug"
+semantic_failed = any(key.startswith("semantic_") and not passed for key, _, _, passed in metric_values)
 score = min(100.0, failed_count * 15.0 + (35.0 if semantic_failed else 0.0) + (25.0 if result_state != "SUCCESS" else 0.0))
 severity = "CRITICAL" if score >= 80 else "HIGH" if score >= 60 else "MEDIUM" if score >= 30 else "LOW" if score > 0 else "NONE"
 verdict = "FAIL" if score >= 30 else "WARN" if score > 0 else "PASS"
 summary = known_summary.get(scenario, "Run analysis completed from available evidence.")
 suggested_diff = ""
-if semantic_failed:
-    suggested_diff = "--- a/demo_ltv.py\n+++ b/demo_ltv.py\n@@\n- SUM(ABS(amount)) AS ltv\n+ SUM(amount) AS ltv\n"
 
 prompt = json.dumps({
     "output_language": locale, "scenario": scenario, "result_state": result_state,
-    "policy_hash": policy_hash, "evidence": evidence,
-    "instruction": "Use only evidence. Return a concise JSON object with summary and findings.",
+    "policy_hash": policy_hash, "policy": policy_snapshot, "evidence": evidence,
+    "task_sources": [{"task_key": key, "path": path, "source": text}
+                     for key, path, text in source_snapshots],
+    "instruction": (
+        "Use only the supplied evidence and actual task sources. Output <DIFF>...</DIFF> first. If and "
+        "only if the evidence proves a code issue, place a valid unified diff inside it; otherwise "
+        "return <DIFF></DIFF>. The diff must use the exact supplied source path, include ---/+++, a "
+        "hunk header, and at least three unchanged context lines before and after the edit. Never "
+        "invent a file or code. Then briefly state confirmed facts, inferences, and a recommended "
+        "action inside <ANALYSIS>...</ANALYSIS>. Do not use markdown fences."
+    ),
 }, ensure_ascii=False)
 llm_status, llm_error, latency_ms = "SKIPPED", None, 0
+diff_validation = None
 start = time.monotonic()
 try:
     response = w.serving_endpoints.query(
         name=endpoint,
         messages=[ChatMessage(role=ChatMessageRole.USER, content=prompt)],
-        max_tokens=400,
+        max_tokens=1600,
     )
     latency_ms = int((time.monotonic() - start) * 1000)
     llm_status = "SUCCESS"
     if response.choices and response.choices[0].message.content:
         llm_text = response.choices[0].message.content
-        evidence.append({"source": "llm", "metric": "analysis", "value": llm_text[:4000]})
+        diff_start, diff_end = llm_text.find("<DIFF>"), llm_text.find("</DIFF>")
+        candidate_diff = (llm_text[diff_start + 6:diff_end].strip()
+                          if 0 <= diff_start < diff_end else "")
+        if candidate_diff.startswith("```"):
+            candidate_diff = candidate_diff.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        diff_lines = candidate_diff.splitlines()
+        header = "\n".join(diff_lines[:2])
+        matching_sources = [
+            (path, text) for _, path, text in source_snapshots
+            if (path in header or Path(path).name in header
+                or f"{Path(path).name}.py" in header)
+        ]
+        removed_lines = [line[1:] for line in diff_lines if line.startswith("-") and not line.startswith("---")]
+        context_lines = [line[1:] for line in diff_lines if line.startswith(" ")]
+        source_verified = any(
+            removed_lines and all(line in text for line in removed_lines)
+            for _, text in matching_sources
+        )
+        if (candidate_diff.startswith("--- ") and "\n+++ " in candidate_diff
+                and "\n@@" in candidate_diff and len(context_lines) >= 3 and source_verified):
+            suggested_diff = candidate_diff[:20000]
+        elif semantic_failed:
+            llm_status = "REJECTED"
+            diff_validation = {
+                "reason": "suggested diff did not match captured source",
+                "header": header[:500],
+                "removed_lines": removed_lines[:10],
+                "context_line_count": len(context_lines),
+                "matching_source_count": len(matching_sources),
+                "has_hunk": "\n@@" in candidate_diff,
+            }
+            llm_error = json.dumps(diff_validation, ensure_ascii=False)[:2000]
 except Exception as exc:
     latency_ms = int((time.monotonic() - start) * 1000)
     llm_status, llm_error = "FAILED", str(exc)[:2000]
