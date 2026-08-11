@@ -13,7 +13,7 @@ import app as app_module  # noqa: E402
 
 
 REPORTS = [
-    ("semantic_bug", "FAIL", "MEDIUM", 35.0, 10404),
+    ("semantic_bug", "FAIL", "MEDIUM", 50.0, 118664893924504),
     ("runtime_failure", "FAIL", "MEDIUM", 55.0, 10505),
     ("stale", "WARN", "LOW", 15.0, 10303),
     ("normal", "PASS", "NONE", 0.0, 10202),
@@ -26,7 +26,7 @@ def preview_query(statement: str, parameters=None):
         return [
             {"metric_key": "completeness", "metric_value": 1.0, "threshold_value": 0.99, "passed": True},
             {"metric_key": "freshness_days", "metric_value": 0.0, "threshold_value": 1.0, "passed": True},
-            {"metric_key": "semantic_definition", "metric_value": 0.0, "threshold_value": 1.0, "passed": False},
+            {"metric_key": "semantic_net_revenue_mismatches", "metric_value": 10.0, "threshold_value": 0.0, "passed": False},
         ]
     created_at = datetime(2026, 8, 12, 2, 40, tzinfo=timezone.utc)
     rows = [
@@ -45,7 +45,17 @@ def preview_query(statement: str, parameters=None):
             "model_endpoint": "databricks-claude-sonnet-4-6",
             "created_at": created_at,
             "evidence_json": '[{"source":"notebook_source","metric":"aggregation","value":"SUM(ABS(amount))"},{"source":"policy","metric":"ltv_definition","value":"sum of net revenue"}]',
-            "suggested_diff": "--- a/demo_ltv.py\n+++ b/demo_ltv.py\n@@\n- SUM(ABS(amount)) AS ltv\n+ SUM(amount) AS ltv",
+            "suggested_diff": '''--- /Workspace/Jobs/customer_ltv/demo_ltv.py
++++ /Workspace/Jobs/customer_ltv/demo_ltv.py
+@@ -28,7 +28,7 @@
+ frame.createOrReplaceTempView("current_events")
+-aggregation = "SUM(ABS(amount))" if scenario == "semantic_bug" else "SUM(amount)"
++aggregation = "SUM(amount)"
+ result = spark.sql(f"""
+ SELECT customer_id, {aggregation} AS ltv, MAX(event_date) AS as_of_date,
+        '{scenario}' AS scenario, {run_id} AS source_run_id
+ FROM current_events GROUP BY customer_id
+ """)''',
             "policy_snapshot": "version: 1.0.0\nsemantics:\n  definition: LTV is the per-customer sum of net revenue.",
         }
         for scenario, verdict, severity, score, run_id in REPORTS
