@@ -17,7 +17,7 @@ Lakeflow Job 실행의 성능, 데이터 품질, 의미론적 오류를 중앙�
 - **정확한 수정 위치:** diff에 실제 source path, hunk header, 변경 전후 문맥을 포함합니다.
 - **대화형 Code Agent:** 선택한 run의 리포트·metrics·policy·diff만 컨텍스트로 사용해 한국어와 영어로 후속 질문에 답합니다.
 - **전체 화면 다국어:** 탐색, 상태, 빈 화면, 오류, 리포트, 채팅까지 언어 전환 즉시 함께 변경됩니다.
-- **고객 맞춤 정책:** semantic validation SQL은 [`config/analysis-policy.yml`](config/analysis-policy.yml)에서 고객 데이터 모델에 맞게 교체할 수 있습니다.
+- **고객 맞춤 정책:** 비즈니스 의미 규칙을 [`config/analysis-policy.yml`](config/analysis-policy.yml)에 자연어 instruction으로 작성하며 실행 SQL은 필요하지 않습니다.
 
 ## 왜 써보고 싶은가
 
@@ -37,7 +37,7 @@ Lakeflow Job 실행의 성능, 데이터 품질, 의미론적 오류를 중앙�
 | `normal` | 정상 run에는 문제를 만들지 않음 | `PASS · NONE · 0` |
 | `stale` | freshness 1일 초과 탐지 | `WARN · LOW · 15` |
 | `incomplete` | 고객 completeness 90% 탐지 | `WARN · LOW · 15` |
-| `semantic_bug` | 실제 순매출 불일치 10건과 원인 코드를 탐지 | `FAIL · MEDIUM · 50` + source-verified diff |
+| `semantic_bug` | 자연어 순매출 정책과 모순되는 원인 코드를 탐지 | `FAIL · MEDIUM · 50` + source-verified diff |
 | `runtime_failure` | 원본 Job 실패와 품질 부재 설명 | `FAIL · MEDIUM · 55` |
 
 ## 시작하기
@@ -128,9 +128,9 @@ flowchart LR
   end
   subgraph Evidence[근거와 정책]
     API[Jobs API<br/>상태 · duration]
-    SQL[Databricks SQL<br/>품질 · semantic SQL]
+    SQL[Databricks SQL<br/>data quality metrics]
     SRC[Workspace API<br/>실제 task source]
-    POLICY[Versioned YAML policy<br/>SHA-256 snapshot]
+    POLICY[Versioned YAML policy<br/>natural-language semantics · SHA-256]
   end
   subgraph Intelligence[AI 분석]
     FM[Claude Sonnet<br/>Model Serving] --> VERIFY[Source-aware diff validator]
@@ -155,7 +155,7 @@ flowchart LR
 |---|---|---|
 | 배포 | Databricks Asset Bundles, Databricks CLI, Python setup CLI | Jobs, App, 권한과 환경 설정을 재현 가능하게 배포 |
 | 오케스트레이션 | Lakeflow Jobs, Jobs API, 중앙 watcher | 종료 run 탐지와 idempotent 요청 관리 |
-| 측정 | PySpark, Databricks SQL, YAML policy | 실행·품질·고객 정의 semantic 규칙 측정 |
+| 측정·판정 | PySpark, Databricks SQL, YAML natural-language policy | 실행·품질 측정과 실제 source의 비즈니스 instruction 위반 판정 |
 | 소스 근거 | Workspace API, Delta `source_snapshots` | 해당 run의 실제 task source 캡처와 추적 |
 | AI | Claude Sonnet, Databricks Model Serving, typed SDK messages | 근거 한정 분석, 수정안, 후속 질의응답 |
 | 안전장치 | source-aware diff validator, policy hash | 파일·삭제 줄·hunk·문맥 검증과 판정 재현 |

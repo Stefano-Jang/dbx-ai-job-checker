@@ -1,4 +1,4 @@
-version: "1.0.0"
+version: "1.1.0"
 execution_anomaly:
   baseline_successful_runs: 20
   minimum_history: 5
@@ -13,24 +13,11 @@ data_quality:
     - ltv_non_negative
     - input_output_customer_count_consistent
 semantics:
-  definition: "LTV is the per-customer sum of net revenue."
-  include_refunds_and_cancellations: true
-  prohibit_future_data: true
-  checks:
-    - metric_key: semantic_net_revenue_mismatches
-      threshold: 0
-      comparison: maximum
-      query: |
-        WITH expected AS (
-          SELECT customer_id, SUM(amount) AS expected_ltv
-          FROM `{catalog}`.`demo`.`customer_events`
-          GROUP BY customer_id
-        )
-        SELECT CAST(COUNT(*) AS DOUBLE) AS metric_value
-        FROM `{catalog}`.`demo`.`customer_ltv` actual
-        JOIN expected USING (customer_id)
-        WHERE actual.source_run_id = {source_run_id}
-          AND ABS(actual.ltv - expected.expected_ltv) > 0.000001
+  instructions:
+    - "LTV must equal the per-customer sum of net revenue from the available transaction amounts."
+    - "Refunds and cancellations are negative revenue and must reduce LTV; they must never be converted to positive values."
+    - "The implementation must not use absolute-value aggregation or any equivalent transformation that removes the sign of revenue."
+    - "Only report a semantic violation when the supplied task source directly contradicts these instructions."
 scoring:
   weights:
     execution: 0.25
@@ -41,7 +28,7 @@ scoring:
     high: 60
     medium: 30
 llm:
-  model: system.ai.databricks-claude-sonnet-4-6
+  model: databricks-claude-sonnet-4-6
   prompt_version: "1.0.0"
   output_language: request.report_locale
   instructions:

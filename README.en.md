@@ -17,7 +17,7 @@ A Databricks Solution Accelerator that centrally detects Lakeflow Job performanc
 - **Precise edit location:** Includes the real source path, hunk header, and surrounding code in every accepted diff.
 - **Interactive Code Agent:** Answers follow-up questions in Korean or English using only the selected run's report, metrics, policy, and diff.
 - **Complete UI localization:** Navigation, states, reports, errors, and chat switch together when the language changes.
-- **Customer-defined semantics:** Replace the validation SQL in [`config/analysis-policy.yml`](config/analysis-policy.yml) to match the customer's data model.
+- **Customer-defined semantics:** Write business meaning as natural-language instructions in [`config/analysis-policy.yml`](config/analysis-policy.yml); no executable semantic SQL is required.
 
 ## Why teams want to try it
 
@@ -37,7 +37,7 @@ A Databricks Solution Accelerator that centrally detects Lakeflow Job performanc
 | `normal` | Does not invent issues for a healthy run | `PASS · NONE · 0` |
 | `stale` | Detects freshness beyond one day | `WARN · LOW · 15` |
 | `incomplete` | Detects 90% customer completeness | `WARN · LOW · 15` |
-| `semantic_bug` | Measures 10 net-revenue mismatches and locates the cause | `FAIL · MEDIUM · 50` + source-verified diff |
+| `semantic_bug` | Locates source code that contradicts the net-revenue instruction | `FAIL · MEDIUM · 50` + source-verified diff |
 | `runtime_failure` | Explains the failed Job and missing quality output together | `FAIL · MEDIUM · 55` |
 
 ## Getting started
@@ -143,9 +143,9 @@ flowchart LR
   end
   subgraph Evidence[Evidence and policy]
     API[Jobs API<br/>state · duration]
-    SQL[Databricks SQL<br/>quality · semantic SQL]
+    SQL[Databricks SQL<br/>data quality metrics]
     SRC[Workspace API<br/>actual task source]
-    POLICY[Versioned YAML policy<br/>SHA-256 snapshot]
+    POLICY[Versioned YAML policy<br/>natural-language semantics · SHA-256]
   end
   subgraph Intelligence[AI analysis]
     FM[Claude Sonnet<br/>Model Serving] --> VERIFY[Source-aware diff validator]
@@ -170,7 +170,7 @@ flowchart LR
 |---|---|---|
 | Deployment | Databricks Asset Bundles, Databricks CLI, Python setup CLI | Reproducibly deploy Jobs, App, permissions, and environment settings |
 | Orchestration | Lakeflow Jobs, Jobs API, central watcher | Detect terminal runs and manage idempotent analysis requests |
-| Measurement | PySpark, Databricks SQL, YAML policy | Measure execution, quality, and customer-defined semantic rules |
+| Measurement and judgment | PySpark, Databricks SQL, YAML natural-language policy | Measure execution and quality, then judge actual source against business instructions |
 | Source evidence | Workspace API, Delta `source_snapshots` | Capture and trace the actual task source for each run |
 | AI | Claude Sonnet, Databricks Model Serving, typed SDK messages | Evidence-scoped analysis, remediation, and follow-up answers |
 | Guardrails | Source-aware diff validator, policy hash | Validate files, removed lines, hunks, context, and reproducibility |

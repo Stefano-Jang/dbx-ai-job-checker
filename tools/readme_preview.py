@@ -26,7 +26,7 @@ def preview_query(statement: str, parameters=None):
         return [
             {"metric_key": "completeness", "metric_value": 1.0, "threshold_value": 0.99, "passed": True},
             {"metric_key": "freshness_days", "metric_value": 0.0, "threshold_value": 1.0, "passed": True},
-            {"metric_key": "semantic_net_revenue_mismatches", "metric_value": 10.0, "threshold_value": 0.0, "passed": False},
+            {"metric_key": "semantic_policy_violations", "metric_value": 1.0, "threshold_value": 0.0, "passed": False},
         ]
     created_at = datetime(2026, 8, 12, 2, 40, tzinfo=timezone.utc)
     rows = [
@@ -40,7 +40,7 @@ def preview_query(statement: str, parameters=None):
             "severity": severity,
             "score": score,
             "summary": scenario.replace("_", " ").title(),
-            "policy_version": "1.0.0",
+            "policy_version": "1.1.0",
             "policy_hash": "9b1e313cb37f",
             "model_endpoint": "databricks-claude-sonnet-4-6",
             "created_at": created_at,
@@ -56,7 +56,7 @@ def preview_query(statement: str, parameters=None):
         '{scenario}' AS scenario, {run_id} AS source_run_id
  FROM current_events GROUP BY customer_id
  """)''',
-            "policy_snapshot": "version: 1.0.0\nsemantics:\n  definition: LTV is the per-customer sum of net revenue.",
+            "policy_snapshot": "version: 1.1.0\nsemantics:\n  instructions:\n    - LTV must equal the per-customer sum of net revenue.",
         }
         for scenario, verdict, severity, score, run_id in REPORTS
     ]

@@ -88,56 +88,26 @@ metric_values = [
     ("customer_id_duplicates", duplicate_ids, 0.0, duplicate_ids == 0),
     ("negative_ltv", negative_ltv, 0.0, negative_ltv == 0),
 ]
-if result_state == "SUCCESS":
-    for check in policy.get("semantics", {}).get("checks", []):
-        metric_key = str(check["metric_key"])
-        threshold = float(check["threshold"])
-        statement = str(check["query"]).format(catalog=catalog, source_run_id=source_run_id)
-        measured = float(spark.sql(statement).first().metric_value)
-        comparison = check.get("comparison", "maximum")
-        passed = measured <= threshold if comparison == "maximum" else measured >= threshold
-        metric_values.append((metric_key, measured, threshold, passed))
 now = datetime.now(timezone.utc)
-metric_df = spark.createDataFrame(
-    [(source_run_id, key, value, threshold, passed, now) for key, value, threshold, passed in metric_values],
-    "source_run_id long, metric_key string, metric_value double, threshold_value double, passed boolean, measured_at timestamp",
-)
-spark.sql(f"DELETE FROM {table('quality_metrics')} WHERE source_run_id={source_run_id}")
-metric_df.write.mode("append").saveAsTable(f"{catalog}.{schema}.quality_metrics")
 evidence.extend({"source": "quality_metrics", "metric": key, "value": value, "threshold": threshold, "passed": passed}
                 for key, value, threshold, passed in metric_values)
-
-known_summary = {
-    "normal": "실행과 LTV 품질 기준이 정상 범위입니다.",
-    "stale": "LTV 산출 데이터의 freshness 기준을 초과했습니다.",
-    "incomplete": "입력 대비 산출 고객 completeness가 기준 미만입니다.",
-    "semantic_bug": "LTV가 순매출이 아닌 절대 금액 합계로 계산된 의미론적 오류가 감지되었습니다.",
-    "runtime_failure": "원본 Job이 의도된 런타임 오류로 실패했습니다.",
-}
-if locale == "en":
-    known_summary = {
-        "normal": "The run and LTV quality checks are within policy.",
-        "stale": "The LTV output exceeds the freshness threshold.",
-        "incomplete": "Output customer completeness is below policy.",
-        "semantic_bug": "LTV uses absolute amounts instead of net revenue.",
-        "runtime_failure": "The source job failed with the expected demo runtime error.",
-    }
-
-failed_count = sum(not passed for *_, passed in metric_values)
-semantic_failed = any(key.startswith("semantic_") and not passed for key, _, _, passed in metric_values)
-score = min(100.0, failed_count * 15.0 + (35.0 if semantic_failed else 0.0) + (25.0 if result_state != "SUCCESS" else 0.0))
-severity = "CRITICAL" if score >= 80 else "HIGH" if score >= 60 else "MEDIUM" if score >= 30 else "LOW" if score > 0 else "NONE"
-verdict = "FAIL" if score >= 30 else "WARN" if score > 0 else "PASS"
-summary = known_summary.get(scenario, "Run analysis completed from available evidence.")
 suggested_diff = ""
+semantic_failed = False
+semantic_finding = ""
 
 prompt = json.dumps({
     "output_language": locale, "scenario": scenario, "result_state": result_state,
-    "policy_hash": policy_hash, "policy": policy_snapshot, "evidence": evidence,
+    "policy_hash": policy_hash,
+    "semantic_instructions": policy.get("semantics", {}).get("instructions", []),
+    "evidence": evidence,
     "task_sources": [{"task_key": key, "path": path, "source": text}
                      for key, path, text in source_snapshots],
     "instruction": (
-        "Use only the supplied evidence and actual task sources. Output <DIFF>...</DIFF> first. If and "
+        "Evaluate the actual task source against every natural-language semantic instruction. Output "
+        "exactly one <SEMANTIC_VERDICT>PASS|FAIL|UNKNOWN</SEMANTIC_VERDICT> and a concise "
+        "<SEMANTIC_FINDING>...</SEMANTIC_FINDING>. Use FAIL only when source code directly contradicts "
+        "an instruction; use UNKNOWN when source is unavailable or insufficient. Output <DIFF>...</DIFF> "
+        "next. If and "
         "only if the evidence proves a code issue, place a valid unified diff inside it; otherwise "
         "return <DIFF></DIFF>. The diff must use the exact supplied source path, include ---/+++, a "
         "hunk header, and at least three unchanged context lines before and after the edit. Never "
@@ -158,6 +128,13 @@ try:
     llm_status = "SUCCESS"
     if response.choices and response.choices[0].message.content:
         llm_text = response.choices[0].message.content
+        verdict_start, verdict_end = llm_text.find("<SEMANTIC_VERDICT>"), llm_text.find("</SEMANTIC_VERDICT>")
+        semantic_verdict = (llm_text[verdict_start + 18:verdict_end].strip().upper()
+                            if 0 <= verdict_start < verdict_end else "UNKNOWN")
+        finding_start, finding_end = llm_text.find("<SEMANTIC_FINDING>"), llm_text.find("</SEMANTIC_FINDING>")
+        semantic_finding = (llm_text[finding_start + 18:finding_end].strip()[:2000]
+                            if 0 <= finding_start < finding_end else "")
+        semantic_failed = result_state == "SUCCESS" and semantic_verdict == "FAIL" and bool(source_snapshots)
         diff_start, diff_end = llm_text.find("<DIFF>"), llm_text.find("</DIFF>")
         candidate_diff = (llm_text[diff_start + 6:diff_end].strip()
                           if 0 <= diff_start < diff_end else "")
@@ -195,13 +172,48 @@ except Exception as exc:
     llm_status, llm_error = "FAILED", str(exc)[:2000]
     evidence.append({"source": "llm", "metric": "fallback", "value": llm_error})
 
+if semantic_failed:
+    metric_values.append(("semantic_policy_violations", 1.0, 0.0, False))
+    evidence.append({"source": "semantic_policy", "metric": "semantic_policy_violations",
+                     "value": 1.0, "threshold": 0.0, "passed": False,
+                     "finding": semantic_finding})
+
+metric_df = spark.createDataFrame(
+    [(source_run_id, key, value, threshold, passed, now) for key, value, threshold, passed in metric_values],
+    "source_run_id long, metric_key string, metric_value double, threshold_value double, passed boolean, measured_at timestamp",
+)
+spark.sql(f"DELETE FROM {table('quality_metrics')} WHERE source_run_id={source_run_id}")
+metric_df.write.mode("append").saveAsTable(f"{catalog}.{schema}.quality_metrics")
+
+known_summary = {
+    "normal": "실행과 LTV 품질 기준이 정상 범위입니다.",
+    "stale": "LTV 산출 데이터의 freshness 기준을 초과했습니다.",
+    "incomplete": "입력 대비 산출 고객 completeness가 기준 미만입니다.",
+    "semantic_bug": "LTV 구현이 자연어 semantic policy를 위반했습니다.",
+    "runtime_failure": "원본 Job이 의도된 런타임 오류로 실패했습니다.",
+}
+if locale == "en":
+    known_summary = {
+        "normal": "The run and LTV quality checks are within policy.",
+        "stale": "The LTV output exceeds the freshness threshold.",
+        "incomplete": "Output customer completeness is below policy.",
+        "semantic_bug": "The LTV implementation violates the natural-language semantic policy.",
+        "runtime_failure": "The source job failed with the expected demo runtime error.",
+    }
+
+failed_count = sum(not passed for *_, passed in metric_values)
+score = min(100.0, failed_count * 15.0 + (35.0 if semantic_failed else 0.0) + (25.0 if result_state != "SUCCESS" else 0.0))
+severity = "CRITICAL" if score >= 80 else "HIGH" if score >= 60 else "MEDIUM" if score >= 30 else "LOW" if score > 0 else "NONE"
+verdict = "FAIL" if score >= 30 else "WARN" if score > 0 else "PASS"
+summary = known_summary.get(scenario, "Run analysis completed from available evidence.")
+
 llm_df = spark.createDataFrame([(source_run_id, endpoint, llm_status, latency_ms, None, None, llm_error, now)],
     "source_run_id long, endpoint string, status string, latency_ms long, input_tokens long, output_tokens long, error string, invoked_at timestamp")
 llm_df.write.mode("append").saveAsTable(f"{catalog}.{schema}.llm_invocations")
 
 report = spark.createDataFrame([(
     str(uuid.uuid4()), source_run_id, source_job_id, scenario, locale, verdict, severity, score,
-    summary, json.dumps(evidence, ensure_ascii=False), suggested_diff, "1.0.0", policy_hash,
+    summary, json.dumps(evidence, ensure_ascii=False), suggested_diff, str(policy["version"]), policy_hash,
     policy_snapshot, endpoint, now,
 )], "report_id string, source_run_id long, source_job_id long, scenario string, report_locale string, verdict string, severity string, score double, summary string, evidence_json string, suggested_diff string, policy_version string, policy_hash string, policy_snapshot string, model_endpoint string, created_at timestamp")
 report.createOrReplaceTempView("new_run_report")
