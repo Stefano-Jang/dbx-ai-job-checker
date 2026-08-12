@@ -202,6 +202,15 @@ Supported commands are `doctor`, `configure`, `admin-pack`, `deploy`, `resume`, 
 
 See [plan.md](plan.md) for the complete design.
 
+## Future work for production use
+
+This repository is a demo implementation intended to validate the core Solution Accelerator concept. A production deployment should prioritize the following extensions:
+
+- **Low-latency report serving with Lakebase:** Analysis results and state currently live in Unity Catalog Delta tables, which can add latency to repeated App queries and detailed report loads. Keep Delta as the system of record for durable retention and analytics, while synchronizing recent reports, status, and chat sessions to Lakebase for low-latency operational reads.
+- **Watched Job administration in the App:** Watched Jobs are currently managed through the `watched_jobs` table. A production App should let authorized users search, register, enable, pause, and inspect Jobs from an administration screen, including the assigned policy, permission readiness, and an audit trail.
+- **Dynamic policy routing per Job:** Every watched Job currently uses the single [`config/analysis-policy.yml`](config/analysis-policy.yml). Select versioned policies by Job naming convention, tags, owner, workload type, or an explicit mapping, with defined precedence, fallback behavior, conflict handling, and assignment history so the accelerator can support diverse teams and workloads.
+- **Approval-gated remediation and pull requests:** The App currently proposes source-grounded diffs for semantic errors but does not modify code or open pull requests. A future workflow can connect to a repository, create a branch, run automated tests and policy/security checks, obtain human approval, open a PR, and link it back to the analyzed run. Least-privilege credentials, approval gates, rollback, and end-to-end auditing should be mandatory so the App never changes production code autonomously.
+
 ## Supported environment
 
 - Official validation environment: AWS Databricks

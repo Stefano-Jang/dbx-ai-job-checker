@@ -187,6 +187,15 @@ token, password, secret은 실제 설정과 예시 파일 어디에도 저장하
 
 전체 설계는 [plan.md](plan.md)를 참고하세요.
 
+## Future work — 상용화를 위한 발전 방향
+
+이 저장소는 Solution Accelerator의 핵심 개념을 검증하기 위한 데모 구현입니다. 실제 운영 환경으로 확장할 때는 다음 항목을 우선적으로 고려해야 합니다.
+
+- **Lakebase 기반의 빠른 리포트 제공:** 현재 분석 결과와 상태는 Unity Catalog Delta table에 저장되므로 App의 반복 조회와 상세 리포트 로드에는 지연이 발생할 수 있습니다. Delta를 장기 보존 및 분석의 system of record로 유지하면서, 최신 리포트·상태·대화 세션을 Lakebase에 동기화해 App의 operational read latency를 낮추는 구성이 적합합니다.
+- **App UI 기반 감시 대상 관리:** 현재 감시할 Job은 `watched_jobs` table에서 관리합니다. 상용 버전에서는 App에서 Job을 검색하고 등록·활성화·일시 중지하며, 적용 정책과 권한 상태까지 확인할 수 있는 관리 화면과 감사 이력을 제공하는 것이 좋습니다.
+- **Job별 동적 정책 라우팅:** 현재 모든 대상에 단일 [`config/analysis-policy.yml`](config/analysis-policy.yml)을 적용합니다. Job 이름 규칙, tag, owner, workload 유형 또는 명시적 mapping에 따라 서로 다른 versioned policy를 선택하고, 우선순위·fallback·정책 충돌과 적용 이력을 관리해야 다양한 조직과 workload에 범용적으로 적용할 수 있습니다.
+- **승인 기반 자동 수정과 PR 생성:** 현재 semantic 오류에 대해 실제 source에 근거한 수정 diff까지만 제안합니다. 향후에는 repository 연결, branch 생성, 자동 테스트, policy/security 검사, human approval을 거쳐 PR을 생성하고 결과를 해당 run과 연결할 수 있습니다. 운영 코드를 App이 직접 변경하지 않도록 최소 권한, 승인 절차, rollback과 전체 감사 추적이 함께 설계되어야 합니다.
+
 ## 지원 범위
 
 - 공식 검증 환경: AWS Databricks
