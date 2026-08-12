@@ -42,3 +42,28 @@ resources:
             securable_type: TABLE
             securable_full_name: ${var.catalog}.${var.schema}.quality_metrics
             permission: SELECT
+        - name: watched-jobs-read
+          uc_securable:
+            securable_type: TABLE
+            securable_full_name: ${var.catalog}.${var.schema}.watched_jobs
+            permission: SELECT
+        - name: watched-jobs-write
+          uc_securable:
+            securable_type: TABLE
+            securable_full_name: ${var.catalog}.${var.schema}.watched_jobs
+            permission: MODIFY
+        - name: watcher-state-table
+          uc_securable:
+            securable_type: TABLE
+            securable_full_name: ${var.catalog}.${var.schema}.watcher_state
+            permission: SELECT
+        - name: watch-audit-read
+          uc_securable:
+            securable_type: TABLE
+            securable_full_name: ${var.catalog}.${var.schema}.watch_audit_log
+            permission: SELECT
+        - name: watch-audit-write
+          uc_securable:
+            securable_type: TABLE
+            securable_full_name: ${var.catalog}.${var.schema}.watch_audit_log
+            permission: MODIFY

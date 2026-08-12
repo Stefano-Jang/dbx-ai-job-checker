@@ -12,7 +12,10 @@
   <div class="shell">
     <aside class="nav">
       <div class="brand"><span class="mark" aria-hidden="true">A</span><div><strong translate="no">AI Job Checker</strong><small data-i18n="productType"></small></div></div>
-      <nav><a class="active" href="#reports"><span aria-hidden="true">▦</span><span data-i18n="navReports"></span></a></nav>
+      <nav aria-label="Primary">
+        <a data-view-link="reports" href="?view=reports"><span aria-hidden="true">▦</span><span data-i18n="navReports"></span></a>
+        <a data-view-link="jobs" href="?view=jobs"><span aria-hidden="true">⌘</span><span data-i18n="navJobs"></span><span class="nav-signal" aria-hidden="true"></span></a>
+      </nav>
       <div class="nav-foot"><span class="live-dot" aria-hidden="true"></span><span data-i18n="workspaceConnected"></span></div>
     </aside>
     <div class="page">
@@ -20,11 +23,37 @@
         <div><p class="eyebrow">DATABRICKS / LAKEFLOW</p><h1 data-i18n="title"></h1><p data-i18n="subtitle"></p></div>
         <div class="header-actions"><span class="environment"><i aria-hidden="true"></i><span data-i18n="live"></span></span><button type="button" id="locale" class="secondary"></button></div>
       </header>
-      <main id="main">
+      <main id="main" data-view="reports">
+        <div id="reportsView" class="view">
         <section class="hero" aria-labelledby="demoTitle"><div class="hero-copy"><span class="pulse" aria-hidden="true">⌁</span><div><strong id="demoTitle" data-i18n="demoTitle"></strong><p data-i18n="demoHelp"></p></div></div><div class="scenarios"><button type="button" data-scenario="normal" data-i18n="scenarioNormal"></button><button type="button" data-scenario="stale" data-i18n="scenarioStale"></button><button type="button" data-scenario="incomplete" data-i18n="scenarioIncomplete"></button><button type="button" data-scenario="semantic_bug" data-i18n="scenarioSemantic"></button><button type="button" data-scenario="runtime_failure" data-i18n="scenarioRuntime"></button></div></section>
         <section id="notice" class="notice" role="status" aria-live="polite"></section>
         <section class="kpis"><article><span data-i18n="kpiRuns"></span><strong id="total">—</strong><small data-i18n="kpiRunsHelp"></small></article><article><span data-i18n="kpiPass"></span><strong id="passed">—</strong><small data-i18n="kpiPassHelp"></small></article><article><span data-i18n="kpiAttention"></span><strong id="failed">—</strong><small data-i18n="kpiAttentionHelp"></small></article><article><span data-i18n="kpiPolicy"></span><strong id="policy">—</strong><small data-i18n="kpiPolicyHelp"></small></article></section>
         <section class="workspace"><aside><div class="section-title"><div><p class="eyebrow" data-i18n="recent"></p><h2 data-i18n="runReports"></h2></div><button type="button" id="refresh" class="icon" aria-label="Refresh">↻</button></div><div id="reports" class="reports"></div></aside><article id="detail" class="detail" aria-live="polite"></article></section>
+        </div>
+        <div id="jobsView" class="view" hidden>
+          <section class="registry-hero">
+            <div><p class="eyebrow" data-i18n="controlPlane"></p><h2 data-i18n="jobsTitle"></h2><p data-i18n="jobsSubtitle"></p></div>
+            <div class="registry-telemetry" aria-label="Registry status"><span><i aria-hidden="true"></i><b id="activeJobs">—</b><small data-i18n="activeJobs"></small></span><span><b id="pausedJobs">—</b><small data-i18n="pausedJobs"></small></span><span><b id="accessIssues">—</b><small data-i18n="accessIssues"></small></span></div>
+          </section>
+          <section id="jobNotice" class="notice" role="status" aria-live="polite" hidden></section>
+          <div class="registry-layout">
+            <section class="registry-panel registry-main" aria-labelledby="registryHeading">
+              <div class="panel-heading"><div><p class="eyebrow" data-i18n="fleet"></p><h3 id="registryHeading" data-i18n="registry"></h3><p data-i18n="registryHelp"></p></div><button type="button" id="refreshJobs" class="icon" data-i18n-aria="refreshJobs">↻</button></div>
+              <form id="jobSearchForm" class="job-search" role="search">
+                <label for="jobSearch" data-i18n="findJob"></label>
+                <div><input id="jobSearch" name="job-search" type="search" autocomplete="off" spellcheck="false" data-i18n-placeholder="jobSearchPlaceholder"><button type="submit" data-i18n="search"></button></div>
+                <small data-i18n="searchScope"></small>
+              </form>
+              <div id="jobSearchResults" class="job-search-results" aria-live="polite"></div>
+              <div class="registry-table-wrap"><table class="registry-table"><thead><tr><th scope="col" data-i18n="job"></th><th scope="col" data-i18n="policyVersion"></th><th scope="col" data-i18n="permission"></th><th scope="col" data-i18n="watcher"></th><th scope="col" data-i18n="actions"></th></tr></thead><tbody id="watchedJobs"></tbody></table></div>
+            </section>
+            <aside class="registry-panel audit-panel" aria-labelledby="auditHeading">
+              <div class="panel-heading"><div><p class="eyebrow" data-i18n="governance"></p><h3 id="auditHeading" data-i18n="auditTrail"></h3><p data-i18n="auditHelp"></p></div></div>
+              <div class="identity-card"><span class="identity-glyph" aria-hidden="true">SP</span><div><strong data-i18n="executionIdentity"></strong><small id="signedInUser"></small></div></div>
+              <ol id="auditLog" class="audit-log"></ol>
+            </aside>
+          </div>
+        </div>
       </main>
     </div>
   </div>

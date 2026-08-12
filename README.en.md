@@ -16,6 +16,12 @@ A Databricks Solution Accelerator that centrally detects Lakeflow Job performanc
 
 <p align="center"><sub>Click the GIF to watch the high-resolution MP4.</sub></p>
 
+### Watched Job control plane
+
+![The App manages watched Jobs, policy versions, permission readiness, watcher state, and change history](docs/assets/job-registry-en.png)
+
+<p align="center"><sub>Search accessible Jobs · register · change policy · activate or pause · audit every change</sub></p>
+
 ## From diagnosis to remediation in one screen
 
 - **Evidence-first decisions:** Replaces raw LLM JSON with a structured verdict, risk score, confirmed measurements, and recommended action.
@@ -23,6 +29,7 @@ A Databricks Solution Accelerator that centrally detects Lakeflow Job performanc
 - **Precise edit location:** Includes the real source path, hunk header, and surrounding code in every accepted diff.
 - **Interactive Code Agent:** Answers follow-up questions in Korean or English using only the selected run's report, metrics, policy, and diff.
 - **Complete UI localization:** Navigation, states, reports, errors, and chat switch together when the language changes.
+- **App-based Job Registry:** Search and register accessible Jobs, then manage policy versions, permission readiness, watcher activation, and change history from one operations surface.
 - **Customer-defined semantics:** Write business meaning as natural-language instructions in [`config/analysis-policy.yml`](config/analysis-policy.yml); no executable semantic SQL is required.
 
 ## Why teams want to try it
@@ -73,7 +80,7 @@ Administrator titles are less important than the following **object permissions*
 | Connect a SQL warehouse | Installer needs `CAN_USE`; the installer must also be allowed to share/attach the warehouse to the App | Ask the warehouse owner or **Workspace Admin** |
 | Call Model Serving | Analyzer needs endpoint `CAN_QUERY`; installer must be allowed to share/attach the endpoint to the App | Ask the endpoint owner or **Workspace Admin** |
 | Create the Databricks App | Permission to create Apps and upload Workspace files | Ask a **Workspace Admin** if App creation is restricted; involve an **Account Admin** only for account-level enablement or policy changes |
-| App runtime access | App SP receives warehouse `CAN_USE`, demo Job `CAN_MANAGE_RUN`, endpoint `CAN_QUERY`, and `SELECT` on two report tables | Attached automatically by the Bundle; ask the failing resource's owner/admin only if attachment fails |
+| App runtime access | App SP receives warehouse `CAN_USE`, demo Job `CAN_MANAGE_RUN`, endpoint `CAN_QUERY`, report-table `SELECT`, and registry/audit `SELECT` + `MODIFY` | Attached automatically by the Bundle; ask the failing resource's owner/admin only if attachment fails |
 
 #### Are all three administrators always required?
 
@@ -99,6 +106,8 @@ ON SCHEMA ai_job_checker.demo TO `<installer-principal>`;
 Grant warehouse `CAN_USE`, target Job `CAN_VIEW`, notebook `CAN_READ`, and endpoint `CAN_QUERY` from each resource's **Permissions** screen. You do not need to pre-create the App SP: Databricks creates it with the App, and the Bundle attaches the runtime grants declared in [`resources/app.app.yml`](resources/app.app.yml).
 
 Access to the `system.lakeflow` and `system.ai_gateway` system tables is optional and not required for the core installation. Request `USE CATALOG`, `USE SCHEMA`, and `SELECT` only when extending the accelerator with centralized usage or AI Gateway auditing.
+
+To find and register a Job from the App's **Watched Jobs** screen, its owner must grant the App service principal `CAN_VIEW`. Jobs invisible to the App SP do not appear in search; if access to a registered Job is revoked, the UI marks it as `Access required` and prevents reactivation. The Bundle attaches `SELECT` and `MODIFY` on the registry and change-audit tables as App resources.
 
 ```bash
 git clone https://github.com/Stefano-Jang/dbx-ai-job-checker.git
@@ -213,7 +222,6 @@ See [plan.md](plan.md) for the complete design.
 This repository is a demo implementation intended to validate the core Solution Accelerator concept. A production deployment should prioritize the following extensions:
 
 - **Low-latency report serving with Lakebase:** Analysis results and state currently live in Unity Catalog Delta tables, which can add latency to repeated App queries and detailed report loads. Keep Delta as the system of record for durable retention and analytics, while synchronizing recent reports, status, and chat sessions to Lakebase for low-latency operational reads.
-- **Watched Job administration in the App:** Watched Jobs are currently managed through the `watched_jobs` table. A production App should let authorized users search, register, enable, pause, and inspect Jobs from an administration screen, including the assigned policy, permission readiness, and an audit trail.
 - **Dynamic policy routing per Job:** Every watched Job currently uses the single [`config/analysis-policy.yml`](config/analysis-policy.yml). Select versioned policies by Job naming convention, tags, owner, workload type, or an explicit mapping, with defined precedence, fallback behavior, conflict handling, and assignment history so the accelerator can support diverse teams and workloads.
 - **Approval-gated remediation and pull requests:** The App currently proposes source-grounded diffs for semantic errors but does not modify code or open pull requests. A future workflow can connect to a repository, create a branch, run automated tests and policy/security checks, obtain human approval, open a PR, and link it back to the analyzed run. Least-privilege credentials, approval gates, rollback, and end-to-end auditing should be mandatory so the App never changes production code autonomously.
 

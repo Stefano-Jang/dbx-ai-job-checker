@@ -16,6 +16,12 @@ Lakeflow Job 실행의 성능, 데이터 품질, 의미론적 오류를 중앙�
 
 <p align="center"><sub>GIF를 클릭하면 고화질 MP4로 볼 수 있습니다.</sub></p>
 
+### 감시 대상 Job Control Plane
+
+![App에서 감시 대상 Job을 검색하고 정책, 권한, watcher 상태와 감사 이력을 관리하는 화면](docs/assets/job-registry.png)
+
+<p align="center"><sub>접근 가능한 Job 검색 · 등록 · 정책 변경 · 활성화/일시 중지 · 변경 감사 기록</sub></p>
+
 ## 한 화면에서 진단부터 수정까지
 
 - **근거 중심 판정:** raw LLM JSON 대신 판정, 위험 점수, 확인된 측정값, 권장 조치를 구조화해 표시합니다.
@@ -23,6 +29,7 @@ Lakeflow Job 실행의 성능, 데이터 품질, 의미론적 오류를 중앙�
 - **정확한 수정 위치:** diff에 실제 source path, hunk header, 변경 전후 문맥을 포함합니다.
 - **대화형 Code Agent:** 선택한 run의 리포트·metrics·policy·diff만 컨텍스트로 사용해 한국어와 영어로 후속 질문에 답합니다.
 - **전체 화면 다국어:** 탐색, 상태, 빈 화면, 오류, 리포트, 채팅까지 언어 전환 즉시 함께 변경됩니다.
+- **App 기반 Job Registry:** 접근 가능한 Job을 검색·등록하고 정책 버전, 권한 준비 상태, watcher 활성화와 감사 이력을 한 화면에서 관리합니다.
 - **고객 맞춤 정책:** 비즈니스 의미 규칙을 [`config/analysis-policy.yml`](config/analysis-policy.yml)에 자연어 instruction으로 작성하며 실행 SQL은 필요하지 않습니다.
 
 ## 왜 써보고 싶은가
@@ -69,7 +76,7 @@ Lakeflow Job 실행의 성능, 데이터 품질, 의미론적 오류를 중앙�
 | SQL warehouse | 설치자 `CAN_USE`; App 연결 권한을 공유할 수 있는 권한 | Warehouse owner 또는 **Workspace Admin** |
 | Model Serving | analyzer `CAN_QUERY`; App 연결 권한을 공유할 수 있는 권한 | Endpoint owner 또는 **Workspace Admin** |
 | Databricks App | App 생성과 Workspace 파일 업로드 | 정책 제한 시 **Workspace Admin**; account-level 활성화/정책 변경 시에만 **Account Admin** |
-| App runtime | App SP에 warehouse `CAN_USE`, demo Job `CAN_MANAGE_RUN`, endpoint `CAN_QUERY`, 리포트 table `SELECT` | Bundle이 자동 연결. 실패한 리소스의 owner/admin에게 요청 |
+| App runtime | App SP에 warehouse `CAN_USE`, demo Job `CAN_MANAGE_RUN`, endpoint `CAN_QUERY`, 리포트 `SELECT`, registry/audit `SELECT` + `MODIFY` | Bundle이 자동 연결. 실패한 리소스의 owner/admin에게 요청 |
 
 **Account Admin은 일반 설치에 필요하지 않습니다.** Apps가 계정 정책으로 차단됐을 때만 필요합니다. 설치자가 필요한 객체 권한을 이미 위임받았다면 Workspace Admin과 Metastore Admin도 필요하지 않습니다. 가능하면 전체 관리자 대신 Job/Notebook/warehouse/endpoint/catalog owner에게 위 표의 최소 권한만 요청하세요.
 
@@ -86,6 +93,8 @@ ON SCHEMA ai_job_checker.demo TO `<installer-principal>`;
 ```
 
 Warehouse `CAN_USE`, 대상 Job `CAN_VIEW`, Notebook `CAN_READ`, endpoint `CAN_QUERY`는 각 리소스의 Permissions 화면에서 installer/watcher principal에 부여합니다. App SP는 App 생성 시 자동 생성되며 [`resources/app.app.yml`](resources/app.app.yml)의 권한이 배포 중 연결됩니다. `system.lakeflow`와 `system.ai_gateway` 접근은 핵심 실행에는 필요하지 않고 중앙 감사 기능을 확장할 때만 필요합니다.
+
+App의 **감시 대상** 화면에서 Job을 검색·등록하려면 해당 Job owner가 App service principal에 `CAN_VIEW`를 부여해야 합니다. App SP가 볼 수 없는 Job은 검색 결과에 노출되지 않으며, 기존 등록 Job도 권한이 회수되면 `권한 필요`로 표시되고 다시 활성화할 수 없습니다. Registry table과 변경 감사 table의 `SELECT`/`MODIFY` 권한은 Bundle이 App resource로 연결합니다.
 
 ```bash
 git clone https://github.com/Stefano-Jang/dbx-ai-job-checker.git
@@ -198,7 +207,6 @@ token, password, secret은 실제 설정과 예시 파일 어디에도 저장하
 이 저장소는 Solution Accelerator의 핵심 개념을 검증하기 위한 데모 구현입니다. 실제 운영 환경으로 확장할 때는 다음 항목을 우선적으로 고려해야 합니다.
 
 - **Lakebase 기반의 빠른 리포트 제공:** 현재 분석 결과와 상태는 Unity Catalog Delta table에 저장되므로 App의 반복 조회와 상세 리포트 로드에는 지연이 발생할 수 있습니다. Delta를 장기 보존 및 분석의 system of record로 유지하면서, 최신 리포트·상태·대화 세션을 Lakebase에 동기화해 App의 operational read latency를 낮추는 구성이 적합합니다.
-- **App UI 기반 감시 대상 관리:** 현재 감시할 Job은 `watched_jobs` table에서 관리합니다. 상용 버전에서는 App에서 Job을 검색하고 등록·활성화·일시 중지하며, 적용 정책과 권한 상태까지 확인할 수 있는 관리 화면과 감사 이력을 제공하는 것이 좋습니다.
 - **Job별 동적 정책 라우팅:** 현재 모든 대상에 단일 [`config/analysis-policy.yml`](config/analysis-policy.yml)을 적용합니다. Job 이름 규칙, tag, owner, workload 유형 또는 명시적 mapping에 따라 서로 다른 versioned policy를 선택하고, 우선순위·fallback·정책 충돌과 적용 이력을 관리해야 다양한 조직과 workload에 범용적으로 적용할 수 있습니다.
 - **승인 기반 자동 수정과 PR 생성:** 현재 semantic 오류에 대해 실제 source에 근거한 수정 diff까지만 제안합니다. 향후에는 repository 연결, branch 생성, 자동 테스트, policy/security 검사, human approval을 거쳐 PR을 생성하고 결과를 해당 run과 연결할 수 있습니다. 운영 코드를 App이 직접 변경하지 않도록 최소 권한, 승인 절차, rollback과 전체 감사 추적이 함께 설계되어야 합니다.
 

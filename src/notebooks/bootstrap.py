@@ -55,6 +55,10 @@ ddl = {
     "app_settings": """
       setting_key STRING, setting_value STRING, updated_at TIMESTAMP
     """,
+    "watch_audit_log": """
+      event_id STRING, job_id BIGINT, action STRING, actor STRING,
+      details_json STRING, event_time TIMESTAMP
+    """,
 }
 
 for table, columns in ddl.items():
@@ -98,4 +102,3 @@ WHEN MATCHED THEN UPDATE SET * WHEN NOT MATCHED THEN INSERT *
 """)
 
 print(f"Bootstrap complete for {catalog}.{schema}; watching demo job {demo_job_id}")
-
