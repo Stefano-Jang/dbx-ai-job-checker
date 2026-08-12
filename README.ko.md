@@ -10,6 +10,12 @@ Lakeflow Job 실행의 성능, 데이터 품질, 의미론적 오류를 중앙�
 
 <p align="center"><sub>상용 운영 콘솔형 UI — 실제 semantic 측정, 파일 경로와 주변 문맥을 포함한 diff, run-scoped Code Agent</sub></p>
 
+### Semantic bug 시나리오
+
+[![Semantic bug를 탐지하고 실제 source 기반 수정안과 Code Agent로 이어지는 AI Job Checker 데모](docs/assets/semantic-bug-demo.gif)](docs/assets/semantic-bug-demo.mp4)
+
+<p align="center"><sub>GIF를 클릭하면 고화질 MP4로 볼 수 있습니다.</sub></p>
+
 ## 한 화면에서 진단부터 수정까지
 
 - **근거 중심 판정:** raw LLM JSON 대신 판정, 위험 점수, 확인된 측정값, 권장 조치를 구조화해 표시합니다.

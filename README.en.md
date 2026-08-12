@@ -10,6 +10,12 @@ A Databricks Solution Accelerator that centrally detects Lakeflow Job performanc
 
 <p align="center"><sub>Production-style operations console — measured semantic evidence, contextual source diff, and a run-scoped Code Agent</sub></p>
 
+### Semantic bug scenario
+
+[![AI Job Checker detects a semantic bug and moves from measured evidence to a source-grounded fix and Code Agent](docs/assets/semantic-bug-demo.gif)](docs/assets/semantic-bug-demo.mp4)
+
+<p align="center"><sub>Click the GIF to watch the high-resolution MP4.</sub></p>
+
 ## From diagnosis to remediation in one screen
 
 - **Evidence-first decisions:** Replaces raw LLM JSON with a structured verdict, risk score, confirmed measurements, and recommended action.
