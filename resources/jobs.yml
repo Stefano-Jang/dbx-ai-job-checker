@@ -14,6 +14,8 @@ resources:
           default: ${resources.jobs.watcher.id}
         - name: analysis_job_id
           default: ${resources.jobs.analyzer.id}
+        - name: report_locale
+          default: ${var.report_locale}
       tasks:
         - task_key: create_tables
           notebook_task:

@@ -119,6 +119,30 @@ cd dbx-ai-job-checker
 ./setup.sh verify
 ```
 
+`deploy` uses the same idempotent sequence for a brand-new installation and every later redeployment:
+
+The setup helper performs strict validation with the default engine and scopes the Terraform compatibility engine to the actual deploy call to avoid the Databricks CLI 1.11.0 direct-deployment planner failure for a newly created App.
+
+1. It uses the selected SQL warehouse to prepare the catalog, operational/demo schemas, and required Delta tables with `CREATE ... IF NOT EXISTS`.
+2. It validates and deploys the Bundle, including Jobs, the App, and App service-principal resource grants.
+3. The Bootstrap Job seeds deployed Job IDs, the default locale, and the watched demo Job with Delta `MERGE` statements.
+4. It deploys and starts the App.
+
+This prevents an App grant from referencing a table that does not yet exist in an empty Unity Catalog environment. Running `./setup.sh deploy --yes` again preserves existing catalogs, schemas, tables, and seed records while updating the deployed resources. No manual table creation is required.
+
+Before the first installation, the external resources and permissions below must already be available:
+
+- The configured SQL warehouse exists and the installer has `CAN_USE`.
+- The configured Model Serving endpoint exists and the required `CAN_QUERY`/sharing permissions are available.
+- When creating a catalog in an empty environment, the installer has metastore `CREATE CATALOG`.
+- Serverless Lakeflow Jobs and Databricks Apps are enabled for the installer.
+
+If UC initialization or Bundle deployment stops because of a missing permission, grant that permission and rerun the same deploy command. The DDL and Bootstrap seed operations are idempotent, so partially created objects do not need to be deleted.
+
+If a terminated CLI process or panic is confirmed to have left only a stale deployment lock, recover explicitly with `./setup.sh resume --yes --force-lock`. Do not use this option while another deployment is running.
+
+Use `--target test` for an isolated validation deployment. It uses separate Bundle state and a separate workspace path from the production target while retaining the catalog/schema selected by `configure`.
+
 Run a scenario immediately after installation:
 
 ```bash

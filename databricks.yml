@@ -21,6 +21,9 @@ variables:
   serving_endpoint:
     description: Foundation Model API endpoint used for analysis
     default: databricks-claude-sonnet-4-6
+  report_locale:
+    description: Default report locale
+    default: ko
 
 targets:
   nexon:
@@ -31,3 +34,8 @@ targets:
       catalog: ai_job_checker
       schema: ops
       serving_endpoint: databricks-claude-sonnet-4-6
+      report_locale: ko
+  test:
+    mode: production
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}

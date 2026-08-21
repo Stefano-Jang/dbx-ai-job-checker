@@ -106,6 +106,30 @@ cd dbx-ai-job-checker
 ./setup.sh verify
 ```
 
+`deploy`는 최초 설치와 이후 재배포에 동일한 멱등 절차를 사용합니다.
+
+설치 도우미는 strict validation을 기본 engine으로 수행하고, Databricks CLI 1.11.0의 신규 App direct-deployment planner 오류를 피하기 위해 실제 deploy 호출에만 Terraform compatibility engine을 사용합니다.
+
+1. 선택한 SQL warehouse에서 `CREATE ... IF NOT EXISTS`로 catalog, 설정한 운영 schema와 `demo` schema, 필수 Delta table을 먼저 준비합니다.
+2. Bundle을 validate/deploy하여 Jobs, App과 App service principal 권한을 연결합니다.
+3. Bootstrap Job이 배포된 Job ID, 기본 언어와 감시 대상 demo Job을 `MERGE`로 seed합니다.
+4. App을 배포하고 시작합니다.
+
+따라서 완전히 빈 Unity Catalog 환경에서도 App이 존재하지 않는 table에 먼저 권한을 연결하지 않습니다. 같은 `./setup.sh deploy --yes`를 다시 실행하면 기존 catalog/schema/table과 seed를 보존하면서 리소스 정의만 갱신합니다. 별도의 수동 table 생성은 필요하지 않습니다.
+
+최초 설치 전에는 다음 외부 리소스와 권한이 필요합니다.
+
+- 설정에 지정한 SQL warehouse가 존재하며 설치 principal이 `CAN_USE`를 가질 것
+- 설정에 지정한 Model Serving endpoint가 존재하며 필요한 `CAN_QUERY`/공유 권한을 가질 것
+- 빈 환경에서 신규 catalog를 만들 경우 설치 principal이 metastore `CREATE CATALOG`를 가질 것
+- serverless Lakeflow Jobs와 Databricks Apps를 사용할 수 있을 것
+
+초기 UC DDL이나 Bundle 배포 중 실패하면 권한을 보완한 뒤 동일한 deploy 명령을 다시 실행하면 됩니다. 모든 생성 DDL과 Bootstrap seed가 멱등이므로 중간까지 생성된 객체를 삭제할 필요가 없습니다.
+
+CLI 강제 종료나 panic으로 이전 deployment lock만 남은 것이 확인된 경우에는 `./setup.sh resume --yes --force-lock`으로 명시적으로 복구할 수 있습니다. 실행 중인 다른 배포가 있을 때는 이 옵션을 사용하지 마세요.
+
+격리된 검증 배포에는 `--target test`를 사용할 수 있습니다. 운영 target과 별도의 Bundle state 및 workspace 경로를 사용하지만 catalog/schema는 `configure`에서 선택한 값을 그대로 사용합니다.
+
 ```bash
 ./setup.sh demo normal
 ./setup.sh demo semantic_bug

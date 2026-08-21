@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import platform
 import shutil
 import subprocess
@@ -10,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from . import databricks_cli
+from .bootstrap_sql import initialization_statements, validate_identifier
 from .state import config_path, load_json, local_dir, save_json, state_path
 
 
@@ -99,6 +101,8 @@ def configure(args: argparse.Namespace) -> int:
     }
     if not values["warehouse_id"]:
         raise RuntimeError("warehouse를 자동 선택하지 않습니다. --warehouse-id <id>를 지정하세요.")
+    validate_identifier(values["catalog"], "catalog")
+    validate_identifier(values["schema"], "schema")
     save_json(config_path(), values)
     save_json(state_path(), {"stage": "configured", "updated_at": datetime.now(timezone.utc).isoformat()})
     print(f"설정을 저장했습니다: {config_path()}")
@@ -128,9 +132,11 @@ def _configured() -> dict[str, object]:
     return config
 
 
-def _run_checked(command: list[str]) -> None:
+def _run_checked(command: list[str], env: dict[str, str] | None = None) -> None:
     print(f"실행: {' '.join(command)}")
-    result = subprocess.run(command, check=False)
+    process_env = os.environ.copy()
+    process_env.update(env or {})
+    result = subprocess.run(command, check=False, env=process_env)
     if result.returncode != 0:
         raise RuntimeError(f"명령이 실패했습니다(exit {result.returncode}): {' '.join(command)}")
 
@@ -141,7 +147,20 @@ def _bundle_vars(config: dict[str, object]) -> list[str]:
         "--var", f"catalog={config['catalog']}",
         "--var", f"schema={config['schema']}",
         "--var", f"serving_endpoint={config['model']}",
+        "--var", f"report_locale={config['default_report_locale']}",
     ]
+
+
+def _initialize_uc(config: dict[str, object], profile: str) -> None:
+    """Create App-referenced UC objects before bundle deploy, safely on every deploy."""
+    warehouse_id = str(config["warehouse_id"])
+    statements = initialization_statements(config["catalog"], config["schema"])
+    print(f"UC 초기화: 멱등 DDL {len(statements)}개를 실행합니다.")
+    for statement in statements:
+        _run_checked([
+            "databricks", "experimental", "aitools", "tools", "query",
+            "--warehouse", warehouse_id, "--profile", profile, statement,
+        ])
 
 
 def admin_pack(_: argparse.Namespace) -> int:
@@ -209,8 +228,18 @@ def deploy(args: argparse.Namespace) -> int:
         if not sys.stdin.isatty() or input("Jobs, App, UC tables을 생성/갱신합니다. 계속할까요? [y/N] ").lower() not in {"y", "yes"}:
             print("배포를 취소했습니다.")
             return 1
+    _initialize_uc(config, profile)
     _run_checked(["databricks", "bundle", "validate", "--strict", "-t", args.target, *bundle_vars, "--profile", profile])
-    _run_checked(["databricks", "bundle", "deploy", "-t", args.target, *bundle_vars, "--auto-approve", "--profile", profile])
+    # CLI 1.11.0 direct deployment panics while planning a new App with
+    # attached resources. Keep strict validation on the default engine, and
+    # scope the stable Terraform compatibility engine to deployment only.
+    deploy_command = ["databricks", "bundle", "deploy", "-t", args.target, *bundle_vars, "--auto-approve", "--profile", profile]
+    if args.force_lock:
+        deploy_command.append("--force-lock")
+    _run_checked(
+        deploy_command,
+        env={"DATABRICKS_BUNDLE_ENGINE": "terraform"},
+    )
     _run_checked(["databricks", "bundle", "run", "bootstrap", "-t", args.target, *bundle_vars, "--profile", profile])
     _run_checked(["databricks", "bundle", "run", "job_checker_app", "-t", args.target, *bundle_vars, "--profile", profile])
     save_json(state_path(), {"stage": "deployed", "target": args.target, "updated_at": datetime.now(timezone.utc).isoformat()})
@@ -230,7 +259,7 @@ def verify(args: argparse.Namespace) -> int:
     _run_checked(["databricks", "bundle", "summary", "-t", args.target, *bundle_vars, "--profile", profile])
     _run_checked(["databricks", "apps", "get", "ai-job-checker", "--profile", profile])
     statement = f"SELECT COUNT(*) AS watched_jobs FROM `{config['catalog']}`.`{config['schema']}`.`watched_jobs` WHERE enabled=true"
-    _run_checked(["databricks", "experimental", "aitools", "tools", "query", statement, "--profile", profile])
+    _run_checked(["databricks", "experimental", "aitools", "tools", "query", "--warehouse", str(config["warehouse_id"]), "--profile", profile, statement])
     save_json(state_path(), {"stage": "verified", "target": args.target, "updated_at": datetime.now(timezone.utc).isoformat()})
     print("\n검증 완료. 다음 명령: ./setup.sh demo normal")
     return 0
@@ -273,6 +302,10 @@ def build_parser() -> argparse.ArgumentParser:
         command_parser = subparsers.add_parser(name, help=help_text)
         command_parser.add_argument("--target", default="nexon")
         command_parser.add_argument("--yes", action="store_true")
+        command_parser.add_argument(
+            "--force-lock", action="store_true",
+            help="종료된 이전 배포가 남긴 stale deployment lock을 명시적으로 재정의합니다.",
+        )
         command_parser.set_defaults(handler=handler)
     verify_parser = subparsers.add_parser("verify", help="배포와 데이터 접근을 검증합니다.")
     verify_parser.add_argument("--target", default="nexon")

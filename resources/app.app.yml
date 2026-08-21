@@ -16,9 +16,9 @@ resources:
           - name: DATABRICKS_SERVING_ENDPOINT_NAME
             value_from: serving-endpoint
           - name: APP_CATALOG
-            value: ai_job_checker
+            value: ${var.catalog}
           - name: APP_SCHEMA
-            value: ops
+            value: ${var.schema}
       resources:
         - name: sql-warehouse
           sql_warehouse:

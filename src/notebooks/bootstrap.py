@@ -6,6 +6,7 @@ schema = dbutils.widgets.get("schema")
 demo_job_id = int(dbutils.widgets.get("demo_job_id"))
 watcher_job_id = int(dbutils.widgets.get("watcher_job_id"))
 analysis_job_id = int(dbutils.widgets.get("analysis_job_id"))
+report_locale = dbutils.widgets.get("report_locale")
 
 if not catalog.replace("_", "").isalnum() or not schema.replace("_", "").isalnum():
     raise ValueError("catalog and schema must be alphanumeric identifiers")
@@ -91,7 +92,7 @@ WHEN NOT MATCHED THEN INSERT *
 """)
 
 settings = spark.createDataFrame(
-    [("default_report_locale", "ko", now), ("watcher_job_id", str(watcher_job_id), now), ("analysis_job_id", str(analysis_job_id), now)],
+    [("default_report_locale", report_locale, now), ("watcher_job_id", str(watcher_job_id), now), ("analysis_job_id", str(analysis_job_id), now)],
     "setting_key string, setting_value string, updated_at timestamp",
 )
 settings.createOrReplaceTempView("bootstrap_settings")
